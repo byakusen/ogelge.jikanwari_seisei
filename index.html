@@ -1,0 +1,3190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AI時間割自動クリエイター</title>
+    <!-- Google Fonts: M PLUS Rounded 1c -->
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4A90E2;
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --text-color: #333;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+            background-attachment: fixed;
+            color: var(--text-color);
+            overflow: hidden; 
+        }
+
+        .app-container {
+            width: 95%;
+            max-width: 1000px;
+            max-height: 95vh;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .app-container::-webkit-scrollbar { width: 8px; }
+        .app-container::-webkit-scrollbar-track { background: transparent; }
+        .app-container::-webkit-scrollbar-thumb { background: rgba(74,144,226,0.4); border-radius: 4px; }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 1.8rem;
+            text-align: center;
+            color: #2c3e50;
+            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
+        }
+
+        p.desc {
+            margin: 0 0 20px 0;
+            font-size: 0.95rem;
+            text-align: center;
+            color: #555;
+        }
+
+        button {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            font-weight: 700;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 144, 226, 0.6);
+            background: #357abd;
+        }
+
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 10px rgba(74, 144, 226, 0.4);
+        }
+
+        #loading {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            opacity: 0;
+            transition: opacity 0.3s;
+            display: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(74,144,226,0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .view {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 0.4s ease;
+            width: 100%;
+        }
+        .view.active { display: flex; }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- タブ用スタイル --- */
+        .tabs {
+            display: flex;
+            width: 100%;
+            max-width: 600px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+            margin-bottom: 20px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar { display: none; }
+        
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .tab:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 8px 8px 0 0;
+        }
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 8px 8px 0 0;
+        }
+        .tab-content {
+            display: none;
+            width: 100%;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 0.3s ease;
+            width: 100%;
+        }
+        .tab-content.active { display: flex; }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 450px;
+            align-items: center; 
+        }
+        select, input[type="text"], input[type="number"] {
+            padding: 8px 12px;
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1rem;
+            background: rgba(255, 255, 255, 0.7);
+            outline: none;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+            box-sizing: border-box;
+            height: 42px; 
+        }
+        input[type="text"] { flex-grow: 1; width: 50px; }
+        select { cursor: pointer; }
+        
+        .subject-input {
+            width: 72px; 
+            padding: 4px 2px;
+            text-align: center;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 4px;
+            font-family: inherit;
+            background: rgba(255,255,255,0.8);
+            font-size: 0.95rem;
+            height: 32px;
+        }
+
+        .class-list-container {
+            width: 100%;
+            max-width: 450px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+        .class-list-container::-webkit-scrollbar { width: 6px; }
+        .class-list-container::-webkit-scrollbar-thumb { background: rgba(74,144,226,0.3); border-radius: 3px; }
+
+        .grade-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 12px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .class-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.8);
+            padding: 6px 10px 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(0,0,0,0.05);
+            font-weight: bold;
+            color: #444;
+            font-size: 0.95rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        
+        .class-item .delete-btn {
+            height: 26px;
+            padding: 0 8px;
+            font-size: 0.75rem;
+            border-radius: 13px;
+            margin-left: 5px;
+            background: #ff5252; 
+            box-shadow: none;
+        }
+        .class-item .delete-btn:hover { background: #ff1744; box-shadow: 0 2px 5px rgba(255,82,82,0.4); }
+
+        .class-list {
+            list-style: none;
+            padding: 0;
+            width: 100%;
+            max-width: 450px;
+            max-height: 250px;
+            overflow-y: auto;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.4);
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .class-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            font-weight: bold;
+            color: #444;
+        }
+        .class-list li:last-child { border-bottom: none; }
+
+        .settings-section {
+            width: 100%;
+            max-width: 450px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+            box-sizing: border-box;
+        }
+        .settings-section h3 {
+            margin: 0 0 5px 0;
+            font-size: 1.1rem;
+            color: #444;
+            text-align: center;
+        }
+        .checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .checkbox-group label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: rgba(255,255,255,0.6);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .checkbox-group label:hover {
+            background: rgba(255,255,255,0.9);
+        }
+        .checkbox-group input[type="checkbox"] {
+            cursor: pointer;
+        }
+        
+        .unavailable-settings {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .grade-select-wrap {
+            margin-bottom: 10px;
+        }
+        .slots-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.6);
+        }
+        .slots-table th, .slots-table td {
+            border: 1px solid rgba(0,0,0,0.1);
+            padding: 8px 4px;
+        }
+        .slots-table th {
+            background: rgba(255, 255, 255, 0.8);
+            font-weight: bold;
+        }
+        .slot-cell, .fixed-slot-cell {
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            border-radius: 4px;
+        }
+        .slot-cell:hover, .fixed-slot-cell:hover {
+            background: rgba(74, 144, 226, 0.2) !important;
+            filter: brightness(0.95);
+        }
+        .slot-cell.unavailable {
+            background: #ffcdd2;
+            color: #d32f2f;
+            text-decoration: line-through;
+            font-weight: bold;
+        }
+        .slot-cell-disabled {
+            background: #e0e0e0 !important;
+            cursor: not-allowed;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .small-btn { 
+            height: 42px; 
+            padding: 0 15px; 
+            font-size: 0.95rem; 
+            border-radius: 8px; 
+            white-space: nowrap; 
+            flex-shrink: 0; 
+            justify-content: center;
+        }
+        .delete-btn { background: #ff5252; box-shadow: none; height: 36px; font-size: 0.85rem; padding: 0 12px; }
+        .delete-btn:hover { background: #ff1744; box-shadow: 0 2px 5px rgba(255,82,82,0.4); }
+        
+        .header-nav {
+            width: 100%;
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 10px;
+        }
+        .back-btn {
+            background: transparent;
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+            box-shadow: none;
+            padding: 8px 15px;
+            font-size: 0.9rem;
+        }
+        .back-btn:hover { background: rgba(74, 144, 226, 0.1); box-shadow: none; transform: translateX(-2px); }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            margin-top: 20px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.5);
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.05);
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            display: none;
+            max-height: 55vh; 
+        }
+
+        .table-wrapper.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .table-wrapper::-webkit-scrollbar { height: 10px; width: 10px; }
+        .table-wrapper::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); border-radius: 5px; }
+        .table-wrapper::-webkit-scrollbar-thumb { background: rgba(74,144,226,0.5); border-radius: 5px; }
+
+        table {
+            width: 100%;
+            min-width: 800px;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+
+        th, td {
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            padding: 6px 4px;
+            height: 36px;
+            box-sizing: border-box; 
+            vertical-align: middle;
+        }
+
+        .day-border-left { border-left: 2px solid #777 !important; }
+        .grade-border-top td, .grade-border-top th { border-top: 2px solid #777 !important; }
+
+        th {
+            background: #f8f9fa; 
+            font-weight: bold;
+            position: sticky;
+            top: 0; 
+            z-index: 10;
+            border-bottom: 2px solid #aaa; 
+        }
+
+        #tableWrapper thead tr:first-child th, #fixedTableWrapper thead tr:first-child th {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1); 
+        }
+        
+        #tableWrapper thead tr:first-child th.class-col, #fixedTableWrapper thead tr:first-child th.class-col {
+            border-bottom: 2px solid #aaa;
+        }
+
+        #tableWrapper thead tr:nth-child(2) th, #fixedTableWrapper thead tr:nth-child(2) th {
+            top: 35px; 
+            border-bottom: 2px solid #aaa; 
+        }
+
+        .class-col {
+            position: sticky;
+            left: 0;
+            background: #f8f9fa; 
+            font-weight: bold;
+            z-index: 11;
+            border-right: 2px solid #aaa; 
+        }
+
+        th.class-col {
+            z-index: 12;
+        }
+
+        /* --- ドラッグ＆ドロップ用のスタイル --- */
+        .draggable-cell {
+            cursor: grab;
+            transition: opacity 0.2s;
+        }
+        .draggable-cell:active {
+            cursor: grabbing;
+        }
+
+        @media (max-width: 600px) {
+            h1 { font-size: 1.4rem; }
+            button { font-size: 1rem; padding: 10px 20px; }
+            table { font-size: 0.75rem; }
+            .input-group { flex-wrap: wrap; justify-content: center; }
+            .small-btn { width: 100%; } 
+            .tabs { padding-bottom: 5px; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- 1. 生成画面 (デフォルト) -->
+        <div id="view-generator" class="view active">
+            <div class="header-nav" style="justify-content: flex-end;">
+                <button id="goToSettingsBtn" class="back-btn">⚙️ クラス・条件設定</button>
+            </div>
+            <h1>🏫 AI時間割自動クリエイター</h1>
+            <p class="desc">特別教室のかぶりや、1日の偏りを防いで時間割を自動生成します。<br><span style="font-size: 0.85rem; color: #777;">※生成後の時間割は、同じクラスの行内でドラッグ＆ドロップして手動で入れ替えることができます。</span></p>
+            
+            <button id="generateBtn">
+                <span id="btnText">時間割を自動生成する ✨</span>
+            </button>
+            
+            <div id="loading"><span class="spinner"></span>最適な配置を計算中...</div>
+            
+            <div class="table-wrapper" id="tableWrapper">
+                <!-- テーブルがここに生成されます -->
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: center; flex-wrap: wrap; width: 100%;">
+                <button id="copyBtn" style="display: none; background: #0f9d58; box-shadow: 0 4px 15px rgba(15, 157, 88, 0.4);">
+                    <span>📋 スプレッドシート用にコピー</span>
+                </button>
+                <button id="downloadCsvBtn" style="display: none; background: #ff9800; box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);">
+                    <span>📥 CSVダウンロード</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2. 設定画面 -->
+        <div id="view-settings" class="view">
+            <div class="header-nav" style="justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <button id="backToGeneratorBtn" class="back-btn">⬅️ 戻る</button>
+                <button id="toggleSavePanel" class="back-btn" style="border-color: #0f9d58; color: #0f9d58;">💾 設定の保存・読込</button>
+            </div>
+
+            <!-- 保存・読込パネル（トグル表示） -->
+            <div id="savePanel" style="display: none; width: 100%; max-width: 600px; background: rgba(255,255,255,0.6); border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: inset 0 2px 5px rgba(0,0,0,0.05); animation: fadeIn 0.3s ease;">
+                <h3 style="margin: 0 0 10px 0; font-size: 1.05rem; color: #444; text-align: center;">💾 設定の保存・読込</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+                    <input type="text" id="saveNameInput" placeholder="保存名を入力（例：2学期用）" style="flex-grow: 1; height: 38px; font-size: 0.95rem;">
+                    <button id="saveSettingsBtn" class="small-btn" style="background: #0f9d58; box-shadow: 0 2px 8px rgba(15,157,88,0.3); height: 38px; white-space: nowrap;">保存</button>
+                </div>
+                <div id="saveStatusMsg" style="width: 100%; text-align: center; font-size: 0.85rem; font-weight: bold; min-height: 1.3rem; margin-bottom: 8px; transition: opacity 0.3s;"></div>
+                <div id="savedSettingsList" style="max-height: 250px; overflow-y: auto;">
+                    <!-- 保存済み一覧がここに表示される -->
+                </div>
+            </div>
+
+            <h1>⚙️ クラス・条件設定</h1>
+
+            <div class="tabs">
+                <div class="tab active" data-target="tab-classes">クラス編成</div>
+                <div class="tab" data-target="tab-hours">週時間数</div>
+                <div class="tab" data-target="tab-conditions">授業条件</div>
+                <div class="tab" data-target="tab-empty">空き時間</div>
+                <div class="tab" data-target="tab-fixed">固定配置</div>
+                <div class="tab" data-target="tab-preferences">詳細条件</div>
+            </div>
+
+            <div id="tab-classes" class="tab-content active">
+                <p class="desc">時間割を作成するクラス（学年と組）を登録してください。</p>
+                <div class="input-group" style="justify-content: flex-start; max-width: 450px;">
+                    <select id="inputGrade">
+                        <option value="1">1年</option>
+                        <option value="2">2年</option>
+                        <option value="3">3年</option>
+                        <option value="4">4年</option>
+                        <option value="5">5年</option>
+                        <option value="6">6年</option>
+                    </select>
+                    <input type="number" id="inputClass" min="1" max="20" value="2" style="width: 70px;">
+                    <span style="font-weight: bold; color: #555;">組</span>
+                    <button id="addClassBtn" class="small-btn" style="margin-left: 10px;">追加</button>
+                </div>
+                <div id="classListContainer" class="class-list-container">
+                    <!-- クラスリストがここに入る -->
+                </div>
+            </div>
+
+            <div id="tab-hours" class="tab-content">
+                <p class="desc" style="margin-bottom: 10px;">各学年の教科ごとの週時間数を設定します。（0.5単位で入力可能）<br>※変更すると、登録済みのクラスにも反映されます。</p>
+                <div style="margin-bottom: 15px; width: 100%; display: flex; justify-content: flex-start;">
+                    <button id="resetHoursBtn" class="small-btn" style="background: #78909c; box-shadow: 0 4px 15px rgba(120, 144, 156, 0.4);">
+                        <span>初期設定の時間数に戻す ↩️</span>
+                    </button>
+                </div>
+                <div class="table-wrapper show" style="width: 100%; box-shadow: none; background: transparent; margin-top: 0; max-height: 50vh;" id="subjectsTableContainer">
+                    <!-- 時間数テーブルがここに入る -->
+                </div>
+            </div>
+
+            <div id="tab-conditions" class="tab-content">
+                <div class="settings-section">
+                    <h3>連続授業（2コマ続き）の設定</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">チェックを入れた教科は、必ず2時間続きで配置されます。（※1日1時間制限の教科は連続配置されません）</p>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" class="consecutive-checkbox" value="図" checked> 図</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="家" checked> 家</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="理" checked> 理</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="生" checked> 生</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="総" checked> 総</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="体"> 体</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="国"> 国</label>
+                        <label><input type="checkbox" class="consecutive-checkbox" value="算"> 算</label>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>学年合同授業の設定</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">指定した学年の全クラスで同じ時間に授業を行います。</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="jointGrade">
+                            <option value="1">1年</option>
+                            <option value="2">2年</option>
+                            <option value="3" selected>3年</option>
+                            <option value="4">4年</option>
+                            <option value="5">5年</option>
+                            <option value="6">6年</option>
+                        </select>
+                        <select id="jointSubject">
+                            <option value="体" selected>体</option>
+                            <option value="国">国</option>
+                            <option value="算">算</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音">音</option>
+                            <option value="図">図</option>
+                            <option value="家">家</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英">英</option>
+                            <option value="道">道</option>
+                            <option value="特">特</option>
+                            <option value="書">書</option>
+                        </select>
+                        <input type="number" id="jointCount" min="1" max="5" value="2" style="width: 60px;">
+                        <span style="display: flex; align-items: center; white-space: nowrap;">時間</span>
+                        <button id="addJointBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="jointList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+
+                <div class="settings-section">
+                    <h3>複合科目（A/B週）の優先ペア設定</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">0.5コマの教科同士を指定した組み合わせで優先的にペアにします。</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="pairGrade">
+                            <option value="1">1年</option>
+                            <option value="2">2年</option>
+                            <option value="3">3年</option>
+                            <option value="4">4年</option>
+                            <option value="5" selected>5年</option>
+                            <option value="6">6年</option>
+                        </select>
+                        <select id="pairSub1">
+                            <option value="体">体</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音" selected>音</option>
+                            <option value="図">図</option>
+                            <option value="家">家</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英">英</option>
+                        </select>
+                        <span style="display: flex; align-items: center;">と</span>
+                        <select id="pairSub2">
+                            <option value="体">体</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音">音</option>
+                            <option value="図">図</option>
+                            <option value="家" selected>家</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英">英</option>
+                        </select>
+                        <button id="addPairBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="pairList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>学年同日配置（準備・片付けの集約）</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">家庭科や図工など、準備・片付けの手間を減らすため、同じ学年の全クラスの授業をできるだけ同じ曜日に集約します。</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="sameDayGrade">
+                            <option value="1">1年</option>
+                            <option value="2">2年</option>
+                            <option value="3">3年</option>
+                            <option value="4">4年</option>
+                            <option value="5" selected>5年</option>
+                            <option value="6">6年</option>
+                        </select>
+                        <select id="sameDaySubject">
+                            <option value="家" selected>家</option>
+                            <option value="図">図</option>
+                            <option value="理">理</option>
+                            <option value="音">音</option>
+                            <option value="体">体</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                        </select>
+                        <button id="addSameDayBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="sameDayList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>かぶり禁止（同時進行不可）グループ</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">専科の先生や特別教室の都合で、全学年を通して同じ時間に重なってはいけない教科をグループ化します。</p>
+                    <div class="checkbox-group" style="margin-top:10px;">
+                        <label><input type="checkbox" class="conflict-cb" value="体"> 体</label>
+                        <label><input type="checkbox" class="conflict-cb" value="理"> 理</label>
+                        <label><input type="checkbox" class="conflict-cb" value="図"> 図</label>
+                        <label><input type="checkbox" class="conflict-cb" value="音"> 音</label>
+                        <label><input type="checkbox" class="conflict-cb" value="家"> 家</label>
+                        <label><input type="checkbox" class="conflict-cb" value="書"> 書</label>
+                        <label><input type="checkbox" class="conflict-cb" value="英"> 英</label>
+                        <label><input type="checkbox" class="conflict-cb" value="総"> 総</label>
+                        <label><input type="checkbox" class="conflict-cb" value="生"> 生</label>
+                    </div>
+                    <div style="display: flex; justify-content: center; margin-top: 10px;">
+                        <button id="addConflictBtn" class="small-btn">選択した教科をグループ追加</button>
+                    </div>
+                    <ul id="conflictGroupList" class="class-list" style="margin-bottom: 0; margin-top: 15px; max-width: 100%;"></ul>
+                </div>
+            </div>
+
+            <!-- ★空き時間タブ -->
+            <div id="tab-empty" class="tab-content">
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>学年別 授業なし（空き）設定</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">タップして「授業がないコマ」を赤く設定してください。</p>
+                    <div class="unavailable-settings" style="margin-top: 10px;">
+                        <div class="grade-select-wrap">
+                            対象学年: 
+                            <select id="settingGradeSelect">
+                                <option value="1">1年</option>
+                                <option value="2">2年</option>
+                                <option value="3">3年</option>
+                                <option value="4">4年</option>
+                                <option value="5">5年</option>
+                                <option value="6">6年</option>
+                            </select>
+                        </div>
+                        <table class="slots-table" style="min-width: unset;">
+                            <thead>
+                                <tr><th>月</th><th>火</th><th>水</th><th>木</th><th>金</th></tr>
+                            </thead>
+                            <tbody id="slotGridBody">
+                                <!-- JSで生成 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ★固定配置タブ -->
+            <div id="tab-fixed" class="tab-content">
+                <div class="settings-section" style="max-width: 100%; width: 100%;">
+                    <h3>特別支援・固定配置</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">担当の先生と教科を選び、下の表の枠をタップして固定します。（再タップで解除）</p>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: center; margin-top: 10px; flex-wrap: wrap;">
+                        <div class="input-group" style="margin-bottom:0; max-width: none; width: auto;">
+                            <span style="font-weight:bold; color:#555; white-space: nowrap;">特別支援:</span>
+                            <select id="spNeedTeacherCount" style="height:36px; padding: 4px; width: auto;">
+                                <option value="1">1人</option>
+                                <option value="2" selected>2人</option>
+                                <option value="3">3人</option>
+                                <option value="4">4人</option>
+                                <option value="5">5人</option>
+                                <option value="6">6人</option>
+                                <option value="7">7人</option>
+                                <option value="8">8人</option>
+                                <option value="9">9人</option>
+                                <option value="10">10人</option>
+                            </select>
+                        </div>
+                        <div class="input-group" style="margin-bottom:0; max-width: none; width: auto;">
+                            <span style="font-weight:bold; color:#555; white-space: nowrap;">担当:</span>
+                            <select id="fixedTeacherSelect" style="height:36px; padding: 4px; width: auto;">
+                                <!-- JSで動的に生成 -->
+                            </select>
+                        </div>
+                        <div class="input-group" style="margin-bottom:0; max-width: none; width: auto;">
+                            <span style="font-weight:bold; color:#555; white-space: nowrap;">教科:</span>
+                            <select id="fixedSubjectSelect" style="height:36px; padding: 4px; width: auto;">
+                                <option value="国">国</option>
+                                <option value="算">算</option>
+                                <option value="理">理</option>
+                                <option value="社">社</option>
+                                <option value="音">音</option>
+                                <option value="図">図</option>
+                                <option value="家">家</option>
+                                <option value="体">体</option>
+                                <option value="生">生</option>
+                                <option value="総">総</option>
+                                <option value="英">英</option>
+                                <option value="道">道</option>
+                                <option value="特">特</option>
+                                <option value="書">書</option>
+                            </select>
+                        </div>
+                    </div>
+            
+                    <div class="table-wrapper show" style="margin-top: 15px; max-height: 50vh; opacity: 1; transform: none; display: block;" id="fixedTableWrapper">
+                        <!-- 全体表がここに入る -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- ★詳細条件タブ -->
+            <div id="tab-preferences" class="tab-content">
+                <!-- 専科担当者の登録 -->
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>専科担当者の登録</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">スプレッドシートに書き出す際の担当者名を設定します。（時間割生成には影響しません）</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="specTeacherName">
+                            <option value="専科A">専科A</option>
+                            <option value="専科B">専科B</option>
+                            <option value="専科C">専科C</option>
+                            <option value="専科D">専科D</option>
+                        </select>
+                        <span style="display: flex; align-items: center;">に</span>
+                        <select id="specTeacherSubject">
+                            <option value="国">国</option>
+                            <option value="算">算</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音">音</option>
+                            <option value="図">図</option>
+                            <option value="家">家</option>
+                            <option value="体">体</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英">英</option>
+                            <option value="道">道</option>
+                            <option value="特">特</option>
+                            <option value="書">書</option>
+                        </select>
+                        <span style="display: flex; align-items: center;">を</span>
+                        <button id="addSpecTeacherBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="specTeacherList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>特定の曜日に入れてほしい教科</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">指定した学年の教科を、優先的に選んだ曜日に配置します。</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="prefIncludeGrade">
+                            <option value="1">1年</option>
+                            <option value="2">2年</option>
+                            <option value="3">3年</option>
+                            <option value="4">4年</option>
+                            <option value="5">5年</option>
+                            <option value="6">6年</option>
+                        </select>
+                        <select id="prefIncludeSubject">
+                            <option value="国">国</option>
+                            <option value="算">算</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音">音</option>
+                            <option value="図">図</option>
+                            <option value="家">家</option>
+                            <option value="体">体</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英">英</option>
+                            <option value="道">道</option>
+                            <option value="特">特</option>
+                            <option value="書">書</option>
+                        </select>
+                        <select id="prefIncludeDay">
+                            <option value="0">月曜日</option>
+                            <option value="1">火曜日</option>
+                            <option value="2">水曜日</option>
+                            <option value="3">木曜日</option>
+                            <option value="4">金曜日</option>
+                        </select>
+                        <button id="addPrefIncludeBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="prefIncludeList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>特定の曜日に入れない教科</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">指定した学年の教科を、選んだ曜日に配置しないようにします。</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="prefExcludeGrade">
+                            <option value="1">1年</option>
+                            <option value="2">2年</option>
+                            <option value="3">3年</option>
+                            <option value="4">4年</option>
+                            <option value="5">5年</option>
+                            <option value="6">6年</option>
+                        </select>
+                        <select id="prefExcludeSubject">
+                            <option value="国">国</option>
+                            <option value="算">算</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音">音</option>
+                            <option value="図">図</option>
+                            <option value="家">家</option>
+                            <option value="体">体</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英" selected>英</option>
+                            <option value="道">道</option>
+                            <option value="特">特</option>
+                            <option value="書">書</option>
+                        </select>
+                        <select id="prefExcludeDay">
+                            <option value="0">月曜日</option>
+                            <option value="1">火曜日</option>
+                            <option value="2">水曜日</option>
+                            <option value="3">木曜日</option>
+                            <option value="4" selected>金曜日</option>
+                        </select>
+                        <button id="addPrefExcludeBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="prefExcludeList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+
+                <div class="settings-section" style="max-width: 100%;">
+                    <h3>午後に入れない教科</h3>
+                    <p class="desc" style="font-size: 0.8rem; margin: 0;">指定した学年の教科を、午後（5時間目以降）に配置しないようにします。</p>
+                    <div class="input-group" style="margin-top:10px;">
+                        <select id="prefNoAfternoonGrade">
+                            <option value="0">全学年</option>
+                            <option value="1">1年</option>
+                            <option value="2">2年</option>
+                            <option value="3">3年</option>
+                            <option value="4">4年</option>
+                            <option value="5">5年</option>
+                            <option value="6">6年</option>
+                        </select>
+                        <select id="prefNoAfternoonSubject">
+                            <option value="国">国</option>
+                            <option value="算">算</option>
+                            <option value="理">理</option>
+                            <option value="社">社</option>
+                            <option value="音">音</option>
+                            <option value="図">図</option>
+                            <option value="家" selected>家</option>
+                            <option value="体">体</option>
+                            <option value="生">生</option>
+                            <option value="総">総</option>
+                            <option value="英">英</option>
+                            <option value="道">道</option>
+                            <option value="特">特</option>
+                            <option value="書">書</option>
+                        </select>
+                        <button id="addPrefNoAfternoonBtn" class="small-btn">追加</button>
+                    </div>
+                    <ul id="prefNoAfternoonList" class="class-list" style="margin-bottom: 0;"></ul>
+                </div>
+            </div>
+
+            <button id="goToGeneratorBtn" style="margin-top: 20px;">
+                <span>時間割の作成へ進む ➡️</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 紙吹雪ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    
+    <script>
+        // --- 設定データと状態 ---
+        const defaultSubjectsTemplate = {
+            1: { '国':8, '書':1, '算':4, '生':3, '体':3, '音':2, '図':2, '道':1, '特':1 },
+            2: { '国':8, '書':1, '算':5, '生':3, '体':3, '音':2, '図':2, '道':1, '特':1 },
+            3: { '国':6, '書':1, '社':2, '算':5, '理':3, '音':1.5, '図':1.5, '体':3, '道':1, '特':1, '総':2, '英':1 },
+            4: { '国':6, '書':1, '社':3, '算':5, '理':3, '音':1.5, '図':1.5, '体':3, '道':1, '特':1, '総':2, '英':1 },
+            5: { '国':4, '書':1, '社':3, '算':5, '理':3, '音':1.5, '図':1.5, '家':1.5, '体':2.5, '道':1, '特':1, '総':2, '英':2 },
+            6: { '国':4, '書':1, '社':3, '算':5, '理':3, '音':1.5, '図':1.5, '家':1.5, '体':2.5, '道':1, '特':1, '総':2, '英':2 }
+        };
+
+        const INITIAL_SUBJECTS_TEMPLATE_BASE = JSON.parse(JSON.stringify(defaultSubjectsTemplate));
+
+        const allSubjectsList = ['国', '書', '社', '算', '理', '生', '音', '図', '家', '体', '道', '特', '総', '英'];
+
+        const subjectColors = {
+            '国': { bg: '#ffebee', color: '#b71c1c' },
+            '書': { bg: '#ffcdd2', color: '#c62828' },
+            '算': { bg: '#e3f2fd', color: '#0d47a1' },
+            '理': { bg: '#e8f5e9', color: '#1b5e20' },
+            '社': { bg: '#fff3e0', color: '#e65100' },
+            '体': { bg: '#fce4ec', color: '#880e4f' },
+            '音': { bg: '#f3e5f5', color: '#4a148c' },
+            '図': { bg: '#fff8e1', color: '#f57f17' },
+            '英': { bg: '#e0f7fa', color: '#006064' },
+            '道': { bg: '#f1f8e9', color: '#33691e' },
+            '総': { bg: '#efebe9', color: '#3e2723' },
+            '家': { bg: '#fbe9e7', color: '#bf360c' },
+            '特': { bg: '#eceff1', color: '#263238' },
+            '生': { bg: '#fff9c4', color: '#f57f17' },
+            '／': { bg: 'transparent', color: '#999' }
+        };
+
+        let classesData = [];
+        let jointClassesConfig = []; 
+        let priorityPairsConfig = [
+            { id: 1, grade: 5, sub1: '音', sub2: '家' },
+            { id: 2, grade: 6, sub1: '音', sub2: '家' }
+        ]; 
+        
+        let conflictGroupsConfig = [
+            { id: 1, subjects: ['体'] },
+            { id: 2, subjects: ['理'] },
+            { id: 3, subjects: ['図'] },
+            { id: 4, subjects: ['音', '家'] }, 
+            { id: 5, subjects: ['書'] }
+        ];
+
+        let sameDayConfig = [
+            { id: 1, grade: 5, subject: '家' },
+            { id: 2, grade: 6, subject: '家' }
+        ]; 
+        
+        let prefIncludeConfig = []; 
+        let prefExcludeConfig = []; 
+        let prefNoAfternoonConfig = []; 
+
+        let specialistTeachersConfig = [
+            { id: 1, name: '専科A', subject: '音' },
+            { id: 2, name: '専科B', subject: '英' }
+        ]; 
+
+        let currentSchedule = null; 
+
+        // 空き時間設定
+        const unavailableSlotsByGrade = {
+            1: [5, 11, 22, 28], 
+            2: [5, 11, 28],     
+            3: [5],             
+            4: [],
+            5: [],
+            6: []
+        };
+
+        // 固定配置データ
+        let fixedSlots = {}; 
+        
+        const daysConfig = [
+            { name: '月', periods: 6 },
+            { name: '火', periods: 6 },
+            { name: '水', periods: 5 },
+            { name: '木', periods: 6 },
+            { name: '金', periods: 6 }
+        ];
+        const totalSlots = daysConfig.reduce((sum, day) => sum + day.periods, 0); 
+
+        const successSound = new Audio("https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3");
+
+        const viewSettings = document.getElementById('view-settings');
+        const viewGenerator = document.getElementById('view-generator');
+        const inputGrade = document.getElementById('inputGrade');
+        const inputClass = document.getElementById('inputClass');
+        const addClassBtn = document.getElementById('addClassBtn');
+        const classListContainer = document.getElementById('classListContainer'); 
+        
+        const goToSettingsBtn = document.getElementById('goToSettingsBtn');
+        const backToGeneratorBtn = document.getElementById('backToGeneratorBtn');
+        const goToGeneratorBtn = document.getElementById('goToGeneratorBtn');
+        
+        const generateBtn = document.getElementById('generateBtn');
+        const btnText = document.getElementById('btnText');
+        const loading = document.getElementById('loading');
+        const tableWrapper = document.getElementById('tableWrapper');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+
+        const jointGrade = document.getElementById('jointGrade');
+        const jointSubject = document.getElementById('jointSubject');
+        const jointCount = document.getElementById('jointCount');
+        const addJointBtn = document.getElementById('addJointBtn');
+        const jointListEl = document.getElementById('jointList');
+
+        const pairGrade = document.getElementById('pairGrade');
+        const pairSub1 = document.getElementById('pairSub1');
+        const pairSub2 = document.getElementById('pairSub2');
+        const addPairBtn = document.getElementById('addPairBtn');
+        const pairListEl = document.getElementById('pairList');
+
+        const spNeedTeacherCountEl = document.getElementById('spNeedTeacherCount');
+        const fixedTeacherSelectEl = document.getElementById('fixedTeacherSelect');
+
+        function updateTeacherSelect() {
+            const count = parseInt(spNeedTeacherCountEl.value);
+            let options = '<option value="担任">担任</option>';
+            const alphabets = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+            for(let i=0; i<count; i++) {
+                options += `<option value="特${alphabets[i]}">特別支援${alphabets[i]}</option>`;
+            }
+            options += '<option value="専科">専科</option>';
+            
+            const currentVal = fixedTeacherSelectEl.value;
+            fixedTeacherSelectEl.innerHTML = options;
+            
+            if (currentVal && Array.from(fixedTeacherSelectEl.options).some(o => o.value === currentVal)) {
+                fixedTeacherSelectEl.value = currentVal;
+            }
+        }
+
+        spNeedTeacherCountEl.addEventListener('change', updateTeacherSelect);
+
+        function updateNextClassInput() {
+            const grade = parseInt(inputGrade.value);
+            const classesInGrade = classesData.filter(c => c.grade === grade);
+            let maxClass = 0;
+            classesInGrade.forEach(c => {
+                const classNum = parseInt(c.className);
+                if (!isNaN(classNum) && classNum > maxClass) {
+                    maxClass = classNum;
+                }
+            });
+            inputClass.value = maxClass + 1;
+        }
+
+        inputGrade.addEventListener('change', updateNextClassInput);
+
+        function initSlotGrid() {
+            const tbody = document.getElementById('slotGridBody');
+            let html = '';
+            const maxPeriods = Math.max(...daysConfig.map(d => d.periods));
+            for(let p=0; p<maxPeriods; p++) {
+                html += '<tr>';
+                let offset = 0;
+                for(let d=0; d<daysConfig.length; d++) {
+                    let pCount = daysConfig[d].periods;
+                    if (p < pCount) {
+                        let slot = offset + p;
+                        html += `<td class="slot-cell" data-slot="${slot}">${p+1}</td>`;
+                    } else {
+                        html += `<td class="slot-cell-disabled"></td>`;
+                    }
+                    offset += pCount;
+                }
+                html += '</tr>';
+            }
+            tbody.innerHTML = html;
+            
+            document.querySelectorAll('#slotGridBody .slot-cell').forEach(cell => {
+                cell.addEventListener('click', function() {
+                    const slot = parseInt(this.dataset.slot);
+                    const grade = document.getElementById('settingGradeSelect').value;
+                    const index = unavailableSlotsByGrade[grade].indexOf(slot);
+                    if (index > -1) {
+                        unavailableSlotsByGrade[grade].splice(index, 1);
+                        this.classList.remove('unavailable');
+                    } else {
+                        unavailableSlotsByGrade[grade].push(slot);
+                        this.classList.add('unavailable');
+                    }
+                    renderFixedTable(); 
+                });
+            });
+            
+            document.getElementById('settingGradeSelect').addEventListener('change', renderSlotGrid);
+            renderSlotGrid();
+        }
+
+        function renderSlotGrid() {
+            const grade = document.getElementById('settingGradeSelect').value;
+            const unavailables = unavailableSlotsByGrade[grade];
+            
+            document.querySelectorAll('#slotGridBody .slot-cell').forEach(cell => {
+                const slot = parseInt(cell.dataset.slot);
+                if (unavailables.includes(slot)) {
+                    cell.classList.add('unavailable');
+                } else {
+                    cell.classList.remove('unavailable');
+                }
+            });
+        }
+
+        function renderFixedTable() {
+            const wrapper = document.getElementById('fixedTableWrapper');
+            if (classesData.length === 0) {
+                wrapper.innerHTML = '<p style="text-align:center; padding: 20px;">クラスが登録されていません。</p>';
+                return;
+            }
+
+            let html = '<table><thead><tr><th rowspan="2" class="class-col">学年/組</th>';
+            
+            daysConfig.forEach((day, index) => {
+                let borderClass = index > 0 ? 'day-border-left' : '';
+                html += `<th colspan="${day.periods}" class="day-header ${borderClass}">${day.name}</th>`;
+            });
+            html += '</tr><tr>';
+            
+            daysConfig.forEach((day, index) => {
+                for(let p=1; p<=day.periods; p++) {
+                    let borderClass = (index > 0 && p === 1) ? 'day-border-left' : '';
+                    html += `<th class="${borderClass}">${p}</th>`;
+                }
+            });
+            html += '</tr></thead><tbody>';
+
+            let prevGrade = null;
+
+            classesData.forEach(c => {
+                let gradeClass = '';
+                if (prevGrade !== null && prevGrade !== c.grade) {
+                    gradeClass = 'grade-border-top';
+                }
+                prevGrade = c.grade;
+
+                html += `<tr class="${gradeClass}"><td class="class-col">${c.name}</td>`;
+                
+                let slotIdx = 0;
+                daysConfig.forEach((day, dIdx) => {
+                    for(let p=1; p<=day.periods; p++) {
+                        let borderClass = (dIdx > 0 && p === 1) ? 'day-border-left' : '';
+                        
+                        let isUnavailable = unavailableSlotsByGrade[c.grade] && unavailableSlotsByGrade[c.grade].includes(slotIdx);
+                        let fixedData = fixedSlots[c.name] ? fixedSlots[c.name][slotIdx] : null;
+                        
+                        if (isUnavailable) {
+                            html += `<td class="${borderClass} slot-cell-disabled" style="background:#e0e0e0; cursor:not-allowed;">／</td>`;
+                        } else {
+                            let content = '';
+                            let style = '';
+                            if (fixedData) {
+                                let colors = subjectColors[fixedData.subject] || {bg: '#fff', color: '#000'};
+                                style = `background-color: ${colors.bg}; color: ${colors.color}; font-weight: bold; font-size: 0.9rem;`;
+                                let teacherBadge = fixedData.teacher !== '担任' ? `<div style="font-size: 0.65rem; line-height: 1; color: inherit; opacity: 0.8; margin-top: 2px;">${fixedData.teacher}</div>` : '';
+                                content = `<div>${fixedData.subject}</div>${teacherBadge}`;
+                            }
+                            html += `<td class="${borderClass} fixed-slot-cell" data-class="${c.name}" data-slot="${slotIdx}" style="${style}; cursor:pointer;">${content}</td>`;
+                        }
+                        slotIdx++;
+                    }
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            wrapper.innerHTML = html;
+
+            document.querySelectorAll('.fixed-slot-cell').forEach(cell => {
+                cell.addEventListener('click', function() {
+                    const cName = this.dataset.class;
+                    const slot = parseInt(this.dataset.slot);
+                    const teacher = document.getElementById('fixedTeacherSelect').value;
+                    const subject = document.getElementById('fixedSubjectSelect').value;
+
+                    if (!fixedSlots[cName]) fixedSlots[cName] = {};
+
+                    if (fixedSlots[cName][slot] && fixedSlots[cName][slot].subject === subject && fixedSlots[cName][slot].teacher === teacher) {
+                        delete fixedSlots[cName][slot];
+                    } else {
+                        fixedSlots[cName][slot] = { subject: subject, teacher: teacher };
+                    }
+                    renderFixedTable();
+                });
+            });
+        }
+
+
+        function renderSubjectsTable() {
+            let html = '<table><thead><tr><th style="min-width: 60px;" class="class-col">学年</th>';
+            allSubjectsList.forEach(sub => {
+                html += `<th style="min-width: 55px;">${sub}</th>`;
+            });
+            html += '<th style="min-width: 60px;">合計</th></tr></thead><tbody>';
+
+            for (let grade = 1; grade <= 6; grade++) {
+                html += `<tr><td class="class-col" style="font-weight: bold;">${grade}年</td>`;
+                let total = 0;
+                allSubjectsList.forEach(sub => {
+                    let count = defaultSubjectsTemplate[grade][sub] || 0;
+                    total += count;
+                    let displayCount = Number.isInteger(count) ? count : count.toFixed(1);
+                    html += `<td><input type="number" class="subject-input" data-grade="${grade}" data-sub="${sub}" value="${displayCount}" step="0.5" min="0"></td>`;
+                });
+                let displayTotal = Number.isInteger(total) ? total : total.toFixed(1);
+                html += `<td class="total-cell" data-grade="${grade}" style="font-weight: bold; background: rgba(0,0,0,0.05);">${displayTotal}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            document.getElementById('subjectsTableContainer').innerHTML = html;
+
+            document.querySelectorAll('.subject-input').forEach(input => {
+                input.addEventListener('change', (e) => {
+                    let grade = parseInt(e.target.dataset.grade);
+                    let sub = e.target.dataset.sub;
+                    let val = parseFloat(e.target.value);
+                    if(isNaN(val) || val < 0) {
+                        val = 0;
+                    }
+                    e.target.value = Number.isInteger(val) ? val : val.toFixed(1);
+
+                    if(val === 0) {
+                        delete defaultSubjectsTemplate[grade][sub];
+                    } else {
+                        defaultSubjectsTemplate[grade][sub] = val;
+                    }
+                    
+                    let newTotal = 0;
+                    allSubjectsList.forEach(s => {
+                        newTotal += defaultSubjectsTemplate[grade][s] || 0;
+                    });
+                    document.querySelector(`.total-cell[data-grade="${grade}"]`).innerText = Number.isInteger(newTotal) ? newTotal : newTotal.toFixed(1);
+
+                    classesData.forEach(c => {
+                        if(c.grade === grade) {
+                            if(val === 0) delete c.subjects[sub];
+                            else c.subjects[sub] = val;
+                        }
+                    });
+                });
+            });
+        }
+
+        function renderConflictGroupList() {
+            const listEl = document.getElementById('conflictGroupList');
+            listEl.innerHTML = '';
+            conflictGroupsConfig.forEach(cg => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>[ ${cg.subjects.join(' , ')} ] のかぶり禁止</span>
+                    <button class="delete-btn small-btn" onclick="removeConflictGroup(${cg.id})">削除</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+
+        function removeConflictGroup(id) {
+            conflictGroupsConfig = conflictGroupsConfig.filter(cg => cg.id !== id);
+            renderConflictGroupList();
+        }
+
+        function renderSameDayList() {
+            const listEl = document.getElementById('sameDayList');
+            listEl.innerHTML = '';
+            sameDayConfig.forEach(conf => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${conf.grade}年生 - ${conf.subject} （学年同日）</span>
+                    <button class="delete-btn small-btn" onclick="window.removeSameDay(${conf.id})">削除</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+
+        window.removeSameDay = function(id) {
+            sameDayConfig = sameDayConfig.filter(s => s.id !== id);
+            renderSameDayList();
+        };
+
+        function renderPrefIncludeList() {
+            const listEl = document.getElementById('prefIncludeList');
+            listEl.innerHTML = '';
+            prefIncludeConfig.forEach(conf => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${conf.grade}年生 - ${conf.subject} を ${daysConfig[conf.day].name}曜日に優先</span>
+                    <button class="delete-btn small-btn" onclick="removePrefInclude(${conf.id})">削除</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+        window.removePrefInclude = function(id) {
+            prefIncludeConfig = prefIncludeConfig.filter(c => c.id !== id);
+            renderPrefIncludeList();
+        };
+
+        function renderPrefExcludeList() {
+            const listEl = document.getElementById('prefExcludeList');
+            listEl.innerHTML = '';
+            prefExcludeConfig.forEach(conf => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${conf.grade}年生 - ${conf.subject} を ${daysConfig[conf.day].name}曜日に入れない</span>
+                    <button class="delete-btn small-btn" onclick="removePrefExclude(${conf.id})">削除</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+        window.removePrefExclude = function(id) {
+            prefExcludeConfig = prefExcludeConfig.filter(c => c.id !== id);
+            renderPrefExcludeList();
+        };
+
+        function renderPrefNoAfternoonList() {
+            const listEl = document.getElementById('prefNoAfternoonList');
+            listEl.innerHTML = '';
+            prefNoAfternoonConfig.forEach(conf => {
+                const li = document.createElement('li');
+                const gradeStr = conf.grade === 0 ? '全学年' : `${conf.grade}年生`;
+                li.innerHTML = `
+                    <span>${gradeStr} - ${conf.subject} を 午後に入れない</span>
+                    <button class="delete-btn small-btn" onclick="removePrefNoAfternoon(${conf.id})">削除</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+        window.removePrefNoAfternoon = function(id) {
+            prefNoAfternoonConfig = prefNoAfternoonConfig.filter(c => c.id !== id);
+            renderPrefNoAfternoonList();
+        };
+
+        function renderSpecTeacherList() {
+            const listEl = document.getElementById('specTeacherList');
+            listEl.innerHTML = '';
+            specialistTeachersConfig.forEach(conf => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${conf.name} - ${conf.subject}担当</span>
+                    <button class="delete-btn small-btn" onclick="removeSpecTeacher(${conf.id})">削除</button>
+                `;
+                listEl.appendChild(li);
+            });
+        }
+        window.removeSpecTeacher = function(id) {
+            specialistTeachersConfig = specialistTeachersConfig.filter(c => c.id !== id);
+            renderSpecTeacherList();
+        };
+
+        function initApp() {
+            updateTeacherSelect(); 
+            
+            for(let i=1; i<=6; i++) { addClassData(i, '1'); }
+            
+            renderClassList();
+            initSlotGrid();
+            renderFixedTable();
+            renderJointList();
+            renderPairList(); 
+            renderSubjectsTable(); 
+            renderConflictGroupList(); 
+            renderSameDayList(); 
+            renderPrefIncludeList();
+            renderPrefExcludeList();
+            renderPrefNoAfternoonList();
+            renderSpecTeacherList(); 
+            
+            updateNextClassInput();
+        }
+
+        function addClassData(grade, className) {
+            const gradeNum = parseInt(grade);
+            const name = `${gradeNum}年${className}組`;
+            if (classesData.some(c => c.name === name)) return;
+
+            const subjects = JSON.parse(JSON.stringify(defaultSubjectsTemplate[gradeNum]));
+            classesData.push({
+                id: Date.now() + Math.random(),
+                grade: gradeNum,
+                className: className,
+                name: name,
+                subjects: subjects
+            });
+            classesData.sort((a, b) => {
+                if (a.grade !== b.grade) return a.grade - b.grade;
+                return parseInt(a.className) - parseInt(b.className) || a.className.localeCompare(b.className);
+            });
+            renderFixedTable();
+            renderClassList(); 
+        }
+
+        function removeClassData(id) {
+            const classToRemove = classesData.find(c => c.id === id);
+            if (classToRemove) {
+                delete fixedSlots[classToRemove.name];
+            }
+            classesData = classesData.filter(c => c.id !== id);
+            renderClassList();
+            updateNextClassInput();
+            renderFixedTable();
+        }
+
+        function renderClassList() {
+            classListContainer.innerHTML = '';
+            
+            const grouped = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] };
+            classesData.forEach(c => grouped[c.grade].push(c));
+
+            for (let i = 1; i <= 6; i++) {
+                if (grouped[i].length > 0) {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'grade-group';
+                    
+                    grouped[i].forEach(c => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'class-item';
+                        itemDiv.innerHTML = `
+                            <span>${c.name}</span>
+                            <button class="delete-btn small-btn" onclick="removeClassData(${c.id})">削除</button>
+                        `;
+                        groupDiv.appendChild(itemDiv);
+                    });
+                    
+                    classListContainer.appendChild(groupDiv);
+                }
+            }
+            
+            goToGeneratorBtn.disabled = classesData.length === 0;
+            goToGeneratorBtn.style.opacity = classesData.length === 0 ? '0.5' : '1';
+            goToGeneratorBtn.style.cursor = classesData.length === 0 ? 'not-allowed' : 'pointer';
+        }
+
+        function renderJointList() {
+            jointListEl.innerHTML = '';
+            jointClassesConfig.forEach(jc => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${jc.grade}年生 - ${jc.subject} ${jc.count}時間</span>
+                    <button class="delete-btn small-btn" onclick="removeJointConfig(${jc.id})">削除</button>
+                `;
+                jointListEl.appendChild(li);
+            });
+        }
+
+        function removeJointConfig(id) {
+            jointClassesConfig = jointClassesConfig.filter(jc => jc.id !== id);
+            renderJointList();
+        }
+
+        function renderPairList() {
+            pairListEl.innerHTML = '';
+            priorityPairsConfig.forEach(pc => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span>${pc.grade}年生 - ${pc.sub1}と${pc.sub2} をペア</span>
+                    <button class="delete-btn small-btn" onclick="removePairConfig(${pc.id})">削除</button>
+                `;
+                pairListEl.appendChild(li);
+            });
+        }
+
+        function removePairConfig(id) {
+            priorityPairsConfig = priorityPairsConfig.filter(pc => pc.id !== id);
+            renderPairList();
+        }
+
+        function switchView(viewId) {
+            document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+        }
+
+        function getAvailablePairs(availableSlots) {
+            let pairs = [];
+            let offset = 0;
+            for (let d = 0; d < daysConfig.length; d++) {
+                let pCount = daysConfig[d].periods;
+                // 隣接するすべての2スロットをペア候補にする（1-2, 2-3, 3-4, 5-6）
+                // ※4-5時間目は給食をはさむため除外
+                for (let p = 0; p < pCount - 1; p++) {
+                    if (p === 3) continue; // 4時間目→5時間目（p=3→p+1=4）をスキップ
+                    let slot1 = offset + p;
+                    let slot2 = offset + p + 1;
+                    if (availableSlots.includes(slot1) && availableSlots.includes(slot2)) {
+                        pairs.push([slot1, slot2]);
+                    }
+                }
+                offset += pCount;
+            }
+            return pairs;
+        }
+
+        function getDayIndex(slot) {
+            let offset = 0;
+            for (let d = 0; d < daysConfig.length; d++) {
+                if (slot >= offset && slot < offset + daysConfig[d].periods) {
+                    return d;
+                }
+                offset += daysConfig[d].periods;
+            }
+            return -1;
+        }
+
+        function getPeriodIndex(slot) {
+            let offset = 0;
+            for (let d = 0; d < daysConfig.length; d++) {
+                if (slot >= offset && slot < offset + daysConfig[d].periods) {
+                    return slot - offset + 1; 
+                }
+                offset += daysConfig[d].periods;
+            }
+            return 1;
+        }
+
+        function isSlotValidForSubject(grade, slot, subToCheck) {
+            if (!subToCheck || subToCheck === '／') return true;
+            let dayIdx = getDayIndex(slot);
+            let periodIdx = getPeriodIndex(slot);
+
+            for (let char of subToCheck) {
+                if (char === '／') continue;
+
+                for (let conf of prefExcludeConfig) {
+                    if (conf.grade === grade && char === conf.subject && conf.day === dayIdx) {
+                        return false;
+                    }
+                }
+
+                for (let conf of prefNoAfternoonConfig) {
+                    if ((conf.grade === 0 || conf.grade === grade) && char === conf.subject && periodIdx >= 5) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function countSubInDay(classSchedule, dayIndex, charToCount) {
+            let count = 0;
+            let offset = 0;
+            for (let d = 0; d < dayIndex; d++) {
+                offset += daysConfig[d].periods;
+            }
+            let startSlot = offset;
+            let endSlot = offset + daysConfig[dayIndex].periods - 1;
+            
+            for (let i = startSlot; i <= endSlot; i++) {
+                let subAtSlot = classSchedule[i];
+                if (subAtSlot && subAtSlot !== '／' && subAtSlot.includes(charToCount)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        function isSubjectInConflictGroup(subStr) {
+            for (let char of subStr) {
+                if (conflictGroupsConfig.some(g => g.subjects.includes(char))) return true;
+            }
+            return false;
+        }
+
+        function checkConflict(schedule, slot, subToCheck, targetClassesToIgnore = []) {
+            for (let otherClass in schedule) {
+                if (targetClassesToIgnore.includes(otherClass)) continue; 
+                let existingSub = schedule[otherClass][slot];
+                if (!existingSub || existingSub === '／') continue;
+                
+                for (let c1 of subToCheck) {
+                    for (let c2 of existingSub) {
+                        for (let group of conflictGroupsConfig) {
+                            if (group.subjects.includes(c1) && group.subjects.includes(c2)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // --- ★根本的に書き直したメインエンジン ---
+        // 制約充足問題(CSP)アプローチ：
+        // 1. 教科を「配置難易度」順にソートし、難しいものから先に配置
+        // 2. 各教科の配置候補スロットをスコアリングで最適化
+        // 3. 配置失敗時はバックトラッキングで別の配置を試行
+        // 4. 全体を複数回試行し、最もスコアの高い結果を採用
+        function generateSchedule() {
+            // 【フェールセーフ】0.5コマの奇数チェック
+            for (let c of classesData) {
+                let halfCount = 0;
+                for (let [sub, count] of Object.entries(c.subjects)) {
+                    if (count % 1 !== 0) halfCount++;
+                }
+                if (halfCount % 2 !== 0) {
+                    alert(`【生成エラー】\n${c.name}の0.5コマの科目が奇数個（${halfCount}個）設定されています。\nペアが組めないため生成を中止します。週時間数の「合計」を確認してください。`);
+                    return null;
+                }
+            }
+
+            const consecutiveSubjects = Array.from(document.querySelectorAll('.consecutive-checkbox:checked')).map(cb => cb.value);
+
+            // 各曜日の開始スロットと終了スロットのキャッシュ
+            const daySlotRanges = [];
+            let off = 0;
+            for (let d = 0; d < daysConfig.length; d++) {
+                daySlotRanges.push({ start: off, end: off + daysConfig[d].periods - 1, periods: daysConfig[d].periods });
+                off += daysConfig[d].periods;
+            }
+
+            // ヘルパー：指定スロットが午前か（1〜4時間目）
+            function isAMSlot(slot) {
+                let dayIdx = getDayIndex(slot);
+                let period = getPeriodIndex(slot);
+                return period <= 4;
+            }
+
+            // スケジュール全体の品質スコアを計算
+            function evaluateSchedule(schedule) {
+                let score = 0;
+                let unplacedCount = 0;
+
+                for (let cName in schedule) {
+                    for (let i = 0; i < totalSlots; i++) {
+                        if (schedule[cName][i] === null) unplacedCount++;
+                    }
+                }
+                // 未配置は最大のペナルティ
+                score -= unplacedCount * 10000;
+
+                // 曜日分散ボーナス：各クラスで同一教科が異なる曜日に分散しているほど高スコア
+                classesData.forEach(c => {
+                    let sched = schedule[c.name];
+                    let subDays = {};
+                    for (let i = 0; i < totalSlots; i++) {
+                        let sub = sched[i];
+                        if (!sub || sub === '／') continue;
+                        for (let ch of sub) {
+                            if (!subDays[ch]) subDays[ch] = new Set();
+                            subDays[ch].add(getDayIndex(i));
+                        }
+                    }
+                    for (let ch in subDays) {
+                        score += subDays[ch].size * 5;
+                    }
+                });
+
+                // 優先曜日ボーナス
+                classesData.forEach(c => {
+                    let sched = schedule[c.name];
+                    for (let i = 0; i < totalSlots; i++) {
+                        let sub = sched[i];
+                        if (!sub || sub === '／') continue;
+                        let dayIdx = getDayIndex(i);
+                        for (let ch of sub) {
+                            for (let conf of prefIncludeConfig) {
+                                if (conf.grade === c.grade && ch === conf.subject && dayIdx === conf.day) {
+                                    score += 50;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 連続授業ボーナス：連続設定の教科が隣接スロットに配置されているほど高スコア
+                classesData.forEach(c => {
+                    let sched = schedule[c.name];
+                    let offset = 0;
+                    for (let d = 0; d < daysConfig.length; d++) {
+                        let pCount = daysConfig[d].periods;
+                        for (let p = 0; p < pCount - 1; p++) {
+                            let sub1 = sched[offset + p];
+                            let sub2 = sched[offset + p + 1];
+                            if (!sub1 || !sub2 || sub1 === '／' || sub2 === '／') continue;
+                            for (let cs of consecutiveSubjects) {
+                                if (sub1.includes(cs) && sub2.includes(cs)) {
+                                    score += 200;
+                                }
+                            }
+                        }
+                        offset += pCount;
+                    }
+                });
+
+                return { score, unplacedCount };
+            }
+
+            // 1クラスの教科リスト生成（0.5コマのペアリング含む）
+            function buildSubjectList(c) {
+                let actualCounts = {};
+                let totalActual = 0;
+                let halfSubjects = [];
+
+                for (let [sub, count] of Object.entries(c.subjects)) {
+                    actualCounts[sub] = Math.floor(count);
+                    totalActual += actualCounts[sub];
+                    if (count % 1 !== 0) halfSubjects.push(sub);
+                }
+
+                // 優先ペア処理
+                let gradePairs = priorityPairsConfig.filter(pc => pc.grade === c.grade);
+                gradePairs.forEach(pc => {
+                    let idx1 = halfSubjects.indexOf(pc.sub1);
+                    let idx2 = halfSubjects.indexOf(pc.sub2);
+                    if (idx1 > -1 && idx2 > -1 && idx1 !== idx2) {
+                        let indices = [idx1, idx2].sort((a,b) => b-a);
+                        halfSubjects.splice(indices[0], 1);
+                        halfSubjects.splice(indices[1], 1);
+                        let pairSub = pc.sub1 + pc.sub2;
+                        actualCounts[pairSub] = (actualCounts[pairSub] || 0) + 1;
+                        totalActual += 1;
+                    }
+                });
+
+                // 残りの0.5コマをランダムにペアリング
+                let shuffled = halfSubjects.slice().sort(() => Math.random() - 0.5);
+                while (shuffled.length >= 2) {
+                    let sub1 = shuffled.pop();
+                    let sub2 = shuffled.pop();
+                    let pairSub = sub1 + sub2;
+                    actualCounts[pairSub] = (actualCounts[pairSub] || 0) + 1;
+                    totalActual += 1;
+                }
+
+                // 固定配置分を差し引く
+                let fixed = fixedSlots[c.name] || {};
+                for(let s in fixed) {
+                    let sub = fixed[s].subject;
+                    if (actualCounts[sub] > 0) {
+                        actualCounts[sub]--;
+                        totalActual--;
+                    }
+                }
+
+                return { actualCounts, totalActual };
+            }
+
+            // 1日の上限マップ生成
+            function buildMaxPerDay(c) {
+                let maxPerDay = {};
+                allSubjectsList.forEach(s => maxPerDay[s] = 1);
+                if (c.grade <= 4) { maxPerDay['国'] = 2; }
+                else { maxPerDay['国'] = 1; }
+
+                sameDayConfig.forEach(conf => {
+                    if (conf.grade === c.grade && maxPerDay[conf.subject] !== undefined) {
+                        if (!['国', '書', '算', '社', '音', '体', '英'].includes(conf.subject)) {
+                            maxPerDay[conf.subject] = 4;
+                        }
+                    }
+                });
+                return maxPerDay;
+            }
+
+            // 1日の教科数上限チェック
+            function checkDailyLimit(classSchedule, dayIdx, subToPlace, maxPerDay, allowOver) {
+                for (let char of subToPlace) {
+                    if (char === '／') continue;
+                    let currentCount = countSubInDay(classSchedule, dayIdx, char);
+                    let limit = maxPerDay[char] || 1;
+                    if (currentCount >= limit) {
+                        if (allowOver && char !== '算' && char !== '体') {
+                            continue; // 妥協して通す
+                        }
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // 連続授業ペア配置時の1日上限チェック（2コマ分）
+            function checkDailyLimitForPair(classSchedule, dayIdx, sub, maxPerDay, allowOver) {
+                for (let char of sub) {
+                    if (char === '／') continue;
+                    let currentCount = countSubInDay(classSchedule, dayIdx, char);
+                    let limit = maxPerDay[char] === 1 ? 2 : maxPerDay[char];
+                    if (currentCount + 2 > limit) {
+                        if (allowOver && char !== '算' && char !== '体') {
+                            continue;
+                        }
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // スロットのスコアリング（高いほど良い配置先）
+            function scoreSlotForSubject(classSchedule, grade, slot, sub, maxPerDay) {
+                let score = 0;
+                let dayIdx = getDayIndex(slot);
+
+                if (sub === '／') return 0;
+
+                // 曜日分散：まだその教科が入っていない曜日を大幅に優先
+                for (let char of sub) {
+                    if (char === '／') continue;
+                    let dayCount = countSubInDay(classSchedule, dayIdx, char);
+                    score -= dayCount * 100;
+                }
+
+                // 優先曜日ボーナス
+                for (let char of sub) {
+                    for (let conf of prefIncludeConfig) {
+                        if (conf.grade === grade && char === conf.subject && dayIdx === conf.day) {
+                            score += 200;
+                        }
+                    }
+                }
+
+                // 午前スロットへのわずかな優先（主要教科用）
+                if (isAMSlot(slot)) {
+                    for (let char of sub) {
+                        if (['国', '算'].includes(char)) score += 10;
+                    }
+                }
+
+                // ランダム性の付加（同スコア時の分散）
+                score += Math.random() * 5;
+
+                return score;
+            }
+
+            // 同日配置の曜日決定
+            function decideSameDayAllocations() {
+                let allocations = {};
+                sameDayConfig.forEach(conf => {
+                    let key = `${conf.grade}_${conf.subject}`;
+                    let hasSub = classesData.some(c => c.grade === conf.grade && Object.keys(c.subjects).some(s => s.includes(conf.subject)));
+                    if (hasSub) {
+                        let usedDays = Object.values(allocations);
+                        let availableDays = [0, 1, 2, 3, 4].sort(() => Math.random() - 0.5);
+                        let chosenDay = availableDays.find(d => !usedDays.includes(d));
+                        if (chosenDay === undefined) chosenDay = availableDays[0];
+                        allocations[key] = chosenDay;
+                    }
+                });
+                return allocations;
+            }
+
+            // メイン試行ループ
+            const maxAttempts = 300;
+            let bestSchedule = null;
+            let bestEval = { score: -Infinity, unplacedCount: Infinity };
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                // 段階的な妥協フラグ
+                let ignoreSameDay = attempt > 80;
+                let allowConflict = attempt > 160;
+                let allowOverDailyLimit = attempt > 220;
+
+                let schedule = {};
+                classesData.forEach(c => schedule[c.name] = new Array(totalSlots).fill(null));
+
+                let sameDayAllocations = ignoreSameDay ? {} : decideSameDayAllocations();
+
+                // 空き時間と固定配置の初期化
+                let classStates = {};
+                classesData.forEach(c => {
+                    let unavailables = unavailableSlotsByGrade[c.grade] || [];
+                    let fixed = fixedSlots[c.name] || {};
+
+                    let availableSlots = Array.from({length: totalSlots}, (_, i) => i)
+                        .filter(i => !unavailables.includes(i) && fixed[i] === undefined);
+
+                    unavailables.forEach(slot => { schedule[c.name][slot] = '／'; });
+
+                    for (let s in fixed) {
+                        schedule[c.name][parseInt(s)] = fixed[s].subject;
+                    }
+
+                    let { actualCounts, totalActual } = buildSubjectList(c);
+                    let maxPerDay = buildMaxPerDay(c);
+
+                    // 空きコマ数を計算
+                    actualCounts['／'] = Math.max(0, availableSlots.length - totalActual);
+
+                    classStates[c.name] = {
+                        grade: c.grade,
+                        unavailables: unavailables,
+                        availableSlots: availableSlots.slice(),
+                        maxPerDay: maxPerDay,
+                        actualCounts: actualCounts
+                    };
+                });
+
+                // --- フェーズ1：合同授業の配置 ---
+                jointClassesConfig.forEach(jc => {
+                    let targetClasses = classesData.filter(c => c.grade === jc.grade).map(c => c.name);
+                    if (targetClasses.length === 0) return;
+
+                    let countToPlace = jc.count;
+                    let isConsecutive = consecutiveSubjects.includes(jc.subject);
+
+                    while (countToPlace > 0) {
+                        if (isConsecutive && countToPlace >= 2) {
+                            let commonAvailable = Array.from({length: totalSlots}, (_, i) => i);
+                            targetClasses.forEach(cName => {
+                                commonAvailable = commonAvailable.filter(slot => classStates[cName].availableSlots.includes(slot));
+                            });
+
+                            let pairs = getAvailablePairs(commonAvailable);
+                            // 曜日分散スコアリング
+                            pairs.sort((a, b) => {
+                                let dayA = getDayIndex(a[0]);
+                                let dayB = getDayIndex(b[0]);
+                                let scoreA = 0, scoreB = 0;
+                                targetClasses.forEach(cName => {
+                                    scoreA += countSubInDay(schedule[cName], dayA, jc.subject);
+                                    scoreB += countSubInDay(schedule[cName], dayB, jc.subject);
+                                });
+                                if (scoreA !== scoreB) return scoreA - scoreB;
+                                return Math.random() - 0.5;
+                            });
+                            let placed = false;
+
+                            for (let pair of pairs) {
+                                let dayIdx = getDayIndex(pair[0]);
+                                let isOverDailyLimit = false;
+                                for (let cName of targetClasses) {
+                                    if (!checkDailyLimitForPair(schedule[cName], dayIdx, jc.subject, classStates[cName].maxPerDay, false)) {
+                                        isOverDailyLimit = true; break;
+                                    }
+                                }
+
+                                let isValidSlot = isSlotValidForSubject(jc.grade, pair[0], jc.subject) && isSlotValidForSubject(jc.grade, pair[1], jc.subject);
+
+                                // かぶりチェック
+                                let hasConflict = false;
+                                if (isSubjectInConflictGroup(jc.subject)) {
+                                    for (let slot of pair) {
+                                        if (checkConflict(schedule, slot, jc.subject, targetClasses)) {
+                                            hasConflict = true; break;
+                                        }
+                                    }
+                                }
+
+                                if (!isOverDailyLimit && isValidSlot && !hasConflict) {
+                                    targetClasses.forEach(cName => {
+                                        schedule[cName][pair[0]] = jc.subject;
+                                        schedule[cName][pair[1]] = jc.subject;
+                                        classStates[cName].availableSlots = classStates[cName].availableSlots.filter(s => s !== pair[0] && s !== pair[1]);
+                                        for(let k=0; k<2; k++) {
+                                            let idx_key = jc.subject;
+                                            if (classStates[cName].actualCounts[idx_key] > 0) {
+                                                classStates[cName].actualCounts[idx_key]--;
+                                            }
+                                        }
+                                    });
+                                    placed = true;
+                                    countToPlace -= 2;
+                                    break;
+                                }
+                            }
+                            if (!placed) isConsecutive = false;
+                        } else {
+                            let commonAvailable = Array.from({length: totalSlots}, (_, i) => i);
+                            targetClasses.forEach(cName => {
+                                commonAvailable = commonAvailable.filter(slot => classStates[cName].availableSlots.includes(slot));
+                            });
+
+                            commonAvailable.sort((a, b) => {
+                                let dayA = getDayIndex(a);
+                                let dayB = getDayIndex(b);
+                                let scoreA = 0, scoreB = 0;
+                                targetClasses.forEach(cName => {
+                                    scoreA += countSubInDay(schedule[cName], dayA, jc.subject);
+                                    scoreB += countSubInDay(schedule[cName], dayB, jc.subject);
+                                });
+                                if (scoreA !== scoreB) return scoreA - scoreB;
+                                return Math.random() - 0.5;
+                            });
+                            
+                            let placed = false;
+
+                            for (let slot of commonAvailable) {
+                                let dayIdx = getDayIndex(slot);
+                                let isOverDailyLimit = false;
+                                for (let cName of targetClasses) {
+                                    if (!checkDailyLimit(schedule[cName], dayIdx, jc.subject, classStates[cName].maxPerDay, false)) {
+                                        isOverDailyLimit = true; break;
+                                    }
+                                }
+
+                                let isValidSlot = isSlotValidForSubject(jc.grade, slot, jc.subject);
+
+                                let hasConflict = false;
+                                if (isSubjectInConflictGroup(jc.subject)) {
+                                    hasConflict = checkConflict(schedule, slot, jc.subject, targetClasses);
+                                }
+
+                                if (!isOverDailyLimit && isValidSlot && !hasConflict) {
+                                    targetClasses.forEach(cName => {
+                                        schedule[cName][slot] = jc.subject;
+                                        classStates[cName].availableSlots = classStates[cName].availableSlots.filter(s => s !== slot);
+                                        if (classStates[cName].actualCounts[jc.subject] > 0) {
+                                            classStates[cName].actualCounts[jc.subject]--;
+                                        }
+                                    });
+                                    placed = true;
+                                    countToPlace -= 1;
+                                    break;
+                                }
+                            }
+                            if (!placed) countToPlace -= 1;
+                        }
+                    }
+                });
+
+                // --- フェーズ2：個別授業の配置 ---
+                // クラスの配置順：同日配置制約があるクラスを先に処理
+                let sortedClasses = [...classesData].sort((a, b) => {
+                    let aHasSameDay = sameDayConfig.some(conf => conf.grade === a.grade) ? 1 : 0;
+                    let bHasSameDay = sameDayConfig.some(conf => conf.grade === b.grade) ? 1 : 0;
+                    if (aHasSameDay !== bHasSameDay) return bHasSameDay - aHasSameDay;
+                    if (a.grade !== b.grade) return b.grade - a.grade;
+                    return parseInt(a.className) - parseInt(b.className) || a.className.localeCompare(b.className);
+                });
+
+                let allPlaced = true;
+
+                sortedClasses.forEach(c => {
+                    let state = classStates[c.name];
+                    let availableSlots = state.availableSlots;
+                    let maxPerDay = state.maxPerDay;
+                    let actualCounts = state.actualCounts;
+
+                    // 配置対象の教科リスト構築
+                    let subjectsToPlace = [];
+                    for (let [sub, count] of Object.entries(actualCounts)) {
+                        for (let i = 0; i < count; i++) {
+                            subjectsToPlace.push(sub);
+                        }
+                    }
+
+                    // 連続授業のペアを分離
+                    let pairsToPlace = [];
+                    let singlesToPlace = [];
+
+                    // まずかぶり禁止教科の出現頻度を集計（ソート用）
+                    let totalCounts = {};
+                    for (let char of allSubjectsList) {
+                        totalCounts[char] = 0;
+                        for (let sub of subjectsToPlace) {
+                            if (sub.includes(char)) totalCounts[char]++;
+                        }
+                    }
+
+                    // 連続授業ペア構築：複合科目（音家など）も含めて正しくペアリング
+                    // 方針：各連続教科について、その文字を含む教科を集め、
+                    // 「複合科目＋単一教科」のペアを優先し、次に「単一同士」「複合同士」の順にペアを組む
+                    let usedForPairIdx = new Set();
+
+                    consecutiveSubjects.forEach(targetSub => {
+                        // まだペアに使われていない、targetSubを含む教科のインデックスを収集
+                        let composites = []; // 複合科目（2文字以上）
+                        let pures = [];      // 単一教科（1文字）
+                        for (let i = 0; i < subjectsToPlace.length; i++) {
+                            if (!usedForPairIdx.has(i) && subjectsToPlace[i].includes(targetSub)) {
+                                if (subjectsToPlace[i].length >= 2) {
+                                    composites.push(i);
+                                } else {
+                                    pures.push(i);
+                                }
+                            }
+                        }
+
+                        // 優先1：複合科目と単一教科のペア（例：「音家」+「家」）
+                        while (composites.length > 0 && pures.length > 0) {
+                            let ci = composites.shift();
+                            let pi = pures.shift();
+                            usedForPairIdx.add(ci);
+                            usedForPairIdx.add(pi);
+                            let sub1 = subjectsToPlace[ci];
+                            let sub2 = subjectsToPlace[pi];
+                            let isShared = isSubjectInConflictGroup(sub1) || isSubjectInConflictGroup(sub2);
+                            pairsToPlace.push({ pair: [sub1, sub2], type: isShared ? 'shared' : 'normal' });
+                        }
+
+                        // 優先2：単一教科同士のペア（例：「家」+「家」）
+                        while (pures.length >= 2) {
+                            let pi1 = pures.shift();
+                            let pi2 = pures.shift();
+                            usedForPairIdx.add(pi1);
+                            usedForPairIdx.add(pi2);
+                            let sub1 = subjectsToPlace[pi1];
+                            let sub2 = subjectsToPlace[pi2];
+                            let isShared = isSubjectInConflictGroup(sub1) || isSubjectInConflictGroup(sub2);
+                            pairsToPlace.push({ pair: [sub1, sub2], type: isShared ? 'shared' : 'normal' });
+                        }
+
+                        // 優先3：複合科目同士のペア（例：「音家」+「図家」）
+                        while (composites.length >= 2) {
+                            let ci1 = composites.shift();
+                            let ci2 = composites.shift();
+                            usedForPairIdx.add(ci1);
+                            usedForPairIdx.add(ci2);
+                            let sub1 = subjectsToPlace[ci1];
+                            let sub2 = subjectsToPlace[ci2];
+                            let isShared = isSubjectInConflictGroup(sub1) || isSubjectInConflictGroup(sub2);
+                            pairsToPlace.push({ pair: [sub1, sub2], type: isShared ? 'shared' : 'normal' });
+                        }
+                    });
+
+                    // ペアに使われなかった教科だけをsubjectsToPlaceに残す
+                    subjectsToPlace = subjectsToPlace.filter((_, i) => !usedForPairIdx.has(i));
+
+                    singlesToPlace = subjectsToPlace.slice();
+
+                    // ペアの配置順：かぶり禁止教科を先に、コマ数が多い教科を先に
+                    pairsToPlace.sort((a, b) => {
+                        if (a.type === 'shared' && b.type !== 'shared') return -1;
+                        if (a.type !== 'shared' && b.type === 'shared') return 1;
+                        let countA = 0, countB = 0;
+                        for (let char of a.pair[0]) countA += (totalCounts[char] || 0);
+                        for (let char of b.pair[0]) countB += (totalCounts[char] || 0);
+                        if (countA !== countB) return countB - countA;
+                        return Math.random() - 0.5;
+                    });
+
+                    // --- 連続授業（ペア）の配置 ---
+                    pairsToPlace.forEach(ps => {
+                        let pairs = getAvailablePairs(availableSlots);
+
+                        // 同日配置の対象曜日を取得
+                        let targetDay = -1;
+                        if (!ignoreSameDay) {
+                            for (let conf of sameDayConfig) {
+                                if (conf.grade === c.grade && (ps.pair[0].includes(conf.subject) || ps.pair[1].includes(conf.subject))) {
+                                    let key = `${conf.grade}_${conf.subject}`;
+                                    if (sameDayAllocations[key] !== undefined) {
+                                        targetDay = sameDayAllocations[key];
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        // スコアリングでソート
+                        pairs.sort((a, b) => {
+                            let dayA = getDayIndex(a[0]);
+                            let dayB = getDayIndex(b[0]);
+                            let scoreA = 0, scoreB = 0;
+                            
+                            // 同日配置ボーナス
+                            if (targetDay !== -1) {
+                                if (dayA === targetDay) scoreA += 500;
+                                if (dayB === targetDay) scoreB += 500;
+                            }
+
+                            let chars = Array.from(new Set([...ps.pair[0], ...ps.pair[1]]));
+                            for (let char of chars) {
+                                if (char === '／') continue;
+                                // 曜日分散：まだその教科が少ない曜日を優先
+                                scoreA -= countSubInDay(schedule[c.name], dayA, char) * 100;
+                                scoreB -= countSubInDay(schedule[c.name], dayB, char) * 100;
+                                // 優先曜日
+                                for (let conf of prefIncludeConfig) {
+                                    if (conf.grade === c.grade && char === conf.subject) {
+                                        if (dayA === conf.day) scoreA += 200;
+                                        if (dayB === conf.day) scoreB += 200;
+                                    }
+                                }
+                            }
+                            if (scoreA !== scoreB) return scoreB - scoreA;
+                            return Math.random() - 0.5;
+                        });
+
+                        let placed = false;
+
+                        // 3段階の試行：パス1=全条件厳守、パス2=かぶり妥協、パス3=1日上限も妥協
+                        for (let pass = 0; pass < 3 && !placed; pass++) {
+                            let relaxConflict = (pass >= 1) || allowConflict;
+                            let relaxDailyLimit = (pass >= 2) || allowOverDailyLimit;
+
+                            for (let pair of pairs) {
+                                let dayIdx = getDayIndex(pair[0]);
+
+                                // かぶりチェック
+                                let isConflict = false;
+                                if (ps.type === 'shared') {
+                                    isConflict = checkConflict(schedule, pair[0], ps.pair[0], []) ||
+                                                 checkConflict(schedule, pair[1], ps.pair[1], []);
+                                    if (isConflict && relaxConflict) {
+                                        // 音家の専科は妥協不可、それ以外は妥協
+                                        let hasCritical = false;
+                                        for (let sub of ps.pair) {
+                                            for (let ch of sub) {
+                                                for (let group of conflictGroupsConfig) {
+                                                    if (group.subjects.includes(ch) && (group.subjects.includes('音') || group.subjects.includes('家'))) {
+                                                        hasCritical = true;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        if (!hasCritical) isConflict = false;
+                                    }
+                                }
+
+                                // 1日上限チェック
+                                let charsToCheck = Array.from(new Set([...ps.pair[0], ...ps.pair[1]]));
+                                let isOverDailyLimit = false;
+                                for (let char of charsToCheck) {
+                                    if (char === '／') continue;
+                                    let currentCount = countSubInDay(schedule[c.name], dayIdx, char);
+                                    let limit = maxPerDay[char] === 1 ? 2 : maxPerDay[char];
+                                    if (currentCount + 2 > limit) {
+                                        if (relaxDailyLimit && char !== '算' && char !== '体') {
+                                            continue;
+                                        }
+                                        isOverDailyLimit = true; break;
+                                    }
+                                }
+
+                                let isValidSlot = isSlotValidForSubject(c.grade, pair[0], ps.pair[0]) && isSlotValidForSubject(c.grade, pair[1], ps.pair[1]);
+
+                                if (!isConflict && !isOverDailyLimit && isValidSlot) {
+                                    schedule[c.name][pair[0]] = ps.pair[0];
+                                    schedule[c.name][pair[1]] = ps.pair[1];
+                                    availableSlots = availableSlots.filter(s => s !== pair[0] && s !== pair[1]);
+                                    placed = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!placed) {
+                            // ペアとして配置できなかった場合、単発に分解して再挑戦
+                            singlesToPlace.push(ps.pair[0]);
+                            singlesToPlace.push(ps.pair[1]);
+                        }
+                    });
+
+                    // --- 単発授業の配置 ---
+                    // 配置順ソート：空きコマ「／」は最後、かぶり禁止教科を先、コマ数多い教科を先
+                    singlesToPlace.sort((a, b) => {
+                        if (a === '／' && b !== '／') return 1;
+                        if (a !== '／' && b === '／') return -1;
+                        
+                        let aIsShared = isSubjectInConflictGroup(a) ? 1 : 0;
+                        let bIsShared = isSubjectInConflictGroup(b) ? 1 : 0;
+                        if (aIsShared !== bIsShared) return bIsShared - aIsShared;
+
+                        let countA = 0, countB = 0;
+                        if (a !== '／') for (let char of a) countA += (totalCounts[char] || 0);
+                        if (b !== '／') for (let char of b) countB += (totalCounts[char] || 0);
+                        
+                        if (countA !== countB) return countB - countA;
+                        return Math.random() - 0.5;
+                    });
+
+                    singlesToPlace.forEach(sub => {
+                        let placed = false;
+
+                        // スコアリングでスロットをソート
+                        let scoredSlots = availableSlots.map(slot => {
+                            let score = scoreSlotForSubject(schedule[c.name], c.grade, slot, sub, maxPerDay);
+
+                            // 同日配置ボーナス
+                            if (!ignoreSameDay && sub !== '／') {
+                                let dayIdx = getDayIndex(slot);
+                                for (let conf of sameDayConfig) {
+                                    if (conf.grade === c.grade && sub.includes(conf.subject)) {
+                                        let key = `${conf.grade}_${conf.subject}`;
+                                        if (sameDayAllocations[key] !== undefined && sameDayAllocations[key] === dayIdx) {
+                                            score += 500;
+                                        }
+                                    }
+                                }
+                            }
+
+                            return { slot, score };
+                        });
+
+                        scoredSlots.sort((a, b) => b.score - a.score);
+
+                        for (let { slot } of scoredSlots) {
+                            // かぶりチェック
+                            let isConflict = false;
+                            if (sub !== '／' && isSubjectInConflictGroup(sub)) {
+                                isConflict = checkConflict(schedule, slot, sub, []);
+                                if (isConflict && allowConflict) {
+                                    let hasCritical = false;
+                                    for (let ch of sub) {
+                                        for (let group of conflictGroupsConfig) {
+                                            if (group.subjects.includes(ch) && (group.subjects.includes('音') || group.subjects.includes('家'))) {
+                                                hasCritical = true;
+                                            }
+                                        }
+                                    }
+                                    if (!hasCritical) isConflict = false;
+                                }
+                            }
+
+                            // 1日上限チェック
+                            let isOverDailyLimit = false;
+                            if (sub !== '／') {
+                                let dayIdx = getDayIndex(slot);
+                                if (!checkDailyLimit(schedule[c.name], dayIdx, sub, maxPerDay, allowOverDailyLimit)) {
+                                    isOverDailyLimit = true;
+                                }
+                            }
+
+                            let isValidSlot = isSlotValidForSubject(c.grade, slot, sub);
+
+                            if (!isConflict && !isOverDailyLimit && isValidSlot) {
+                                schedule[c.name][slot] = sub;
+                                availableSlots = availableSlots.filter(s => s !== slot);
+                                placed = true;
+                                break;
+                            }
+                        }
+
+                        if (!placed) {
+                            allPlaced = false;
+                            // 最終手段：条件を一切無視して空いているスロットに配置
+                            if (availableSlots.length > 0) {
+                                let slot = availableSlots[0];
+                                schedule[c.name][slot] = sub;
+                                availableSlots = availableSlots.filter(s => s !== slot);
+                                placed = true;
+                            }
+                        }
+                    });
+
+                    // availableSlotsの更新を反映
+                    classStates[c.name].availableSlots = availableSlots;
+                });
+
+                // --- フェーズ3：スケジュール評価 ---
+                let evalResult = evaluateSchedule(schedule);
+
+                if (evalResult.unplacedCount < bestEval.unplacedCount ||
+                    (evalResult.unplacedCount === bestEval.unplacedCount && evalResult.score > bestEval.score)) {
+                    bestEval = evalResult;
+                    bestSchedule = schedule;
+                }
+
+                // 完全配置＆高スコアなら即終了
+                if (bestEval.unplacedCount === 0 && attempt >= 10) {
+                    console.log(`[成功] 試行回数 ${attempt} 回目で完全な時間割が生成されました。スコア: ${bestEval.score}`);
+                    return bestSchedule;
+                }
+            }
+
+            if (bestEval.unplacedCount > 0) {
+                console.warn(`[一部未配置] ${maxAttempts}回試行しましたが、完全な配置はできませんでした。未配置スロット数: ${bestEval.unplacedCount}`);
+            } else {
+                console.log(`[成功] ${maxAttempts}回の試行で最適な時間割を生成しました。スコア: ${bestEval.score}`);
+            }
+            return bestSchedule;
+        }
+
+        function renderTable(schedule) {
+            let html = '<table><thead><tr><th rowspan="2" class="class-col">学年/組</th>';
+            
+            daysConfig.forEach((day, index) => {
+                let borderClass = index > 0 ? 'day-border-left' : '';
+                html += `<th colspan="${day.periods}" class="day-header ${borderClass}">${day.name}</th>`;
+            });
+            html += '</tr><tr>';
+            
+            daysConfig.forEach((day, index) => {
+                for(let p=1; p<=day.periods; p++) {
+                    let borderClass = (index > 0 && p === 1) ? 'day-border-left' : '';
+                    html += `<th class="${borderClass}">${p}</th>`;
+                }
+            });
+            html += '</tr></thead><tbody>';
+
+            let prevGrade = null;
+
+            classesData.forEach(c => {
+                let gradeClass = '';
+                if (prevGrade !== null && prevGrade !== c.grade) {
+                    gradeClass = 'grade-border-top';
+                }
+                prevGrade = c.grade;
+
+                html += `<tr class="${gradeClass}"><td class="class-col">${c.name}</td>`;
+                
+                let slotIdx = 0;
+                daysConfig.forEach((day, dIdx) => {
+                    for(let p=1; p<=day.periods; p++) {
+                        let sub = schedule[c.name][slotIdx];
+                        let dispSub = (sub === '／' || sub === null) ? '' : String(sub);
+                        let styleStr = '';
+                        let badgeStr = ''; 
+                        
+                        if (sub === null) {
+                            styleStr = `background-color: #ffcdd2; color: #b71c1c; font-size: 0.8rem; font-weight: bold;`;
+                            dispSub = '未配置';
+                        } else if (dispSub.length === 1) {
+                            let colors = subjectColors[dispSub] || subjectColors['／'];
+                            styleStr = `background-color: ${colors.bg}; color: ${colors.color}; font-size: 0.9rem;`;
+                        } else if (dispSub.length === 2) {
+                            let c1 = subjectColors[dispSub[0]] || subjectColors['／'];
+                            let c2 = subjectColors[dispSub[1]] || subjectColors['／'];
+                            styleStr = `background: linear-gradient(135deg, ${c1.bg} 50%, ${c2.bg} 50%); color: #333; font-weight: bold; font-size: 0.75rem; letter-spacing: -1px; border: 1px inset rgba(0,0,0,0.1);`;
+                        } else {
+                            styleStr = `background-color: transparent; color: #999;`;
+                        }
+
+                        let borderClass = (dIdx > 0 && p === 1) ? 'day-border-left' : '';
+                        
+                        html += `<td style="${styleStr}" class="${borderClass} draggable-cell" draggable="true" data-class="${c.name}" data-slot="${slotIdx}" title="ドラッグで入れ替え"><div>${dispSub}</div>${badgeStr}</td>`;
+                        slotIdx++;
+                    }
+                });
+                html += '</tr>';
+            });
+            
+            const count = parseInt(document.getElementById('spNeedTeacherCount').value) || 2;
+            const alphabets = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+            let spTeachers = [];
+            for(let i=0; i<count; i++) {
+                spTeachers.push(`特${alphabets[i]}`);
+            }
+
+            spTeachers.forEach(teacher => {
+                html += `<tr class="grade-border-top"><td class="class-col">特別支援${teacher.replace('特', '')}</td>`;
+                
+                let slotIdx = 0;
+                daysConfig.forEach((day, dIdx) => {
+                    for(let p=1; p<=day.periods; p++) {
+                        let borderClass = (dIdx > 0 && p === 1) ? 'day-border-left' : '';
+                        
+                        let assignedClasses = [];
+                        classesData.forEach(c => {
+                            if (fixedSlots[c.name] && fixedSlots[c.name][slotIdx] && fixedSlots[c.name][slotIdx].teacher === teacher) {
+                                assignedClasses.push({ sub: fixedSlots[c.name][slotIdx].subject, name: `${c.grade}-${c.className}` });
+                            }
+                        });
+
+                        if (assignedClasses.length > 0) {
+                            let dispHtml = assignedClasses.map(a => `<div style="font-weight:bold;">${a.sub}</div><div style="font-size:0.75rem;">${a.name}</div>`).join('<hr style="margin:2px 0; border-color:rgba(0,0,0,0.1);">');
+                            let colors = subjectColors[assignedClasses[0].sub] || subjectColors['／']; 
+                            let styleStr = `background-color: ${colors.bg}; color: ${colors.color}; font-size: 0.9rem; padding: 2px; line-height: 1.2;`;
+                            html += `<td style="${styleStr}" class="${borderClass}">${dispHtml}</td>`;
+                        } else {
+                            html += `<td style="background-color: transparent;" class="${borderClass}"></td>`;
+                        }
+                        
+                        slotIdx++;
+                    }
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            tableWrapper.innerHTML = html;
+
+            // ドラッグ＆ドロップ機能の初期化
+            setupDragAndDrop();
+        }
+
+        // --- ドラッグ＆ドロップ機能 ---
+        function setupDragAndDrop() {
+            const cells = document.querySelectorAll('.draggable-cell');
+            let draggedCell = null;
+
+            cells.forEach(cell => {
+                cell.addEventListener('dragstart', function(e) {
+                    draggedCell = this;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', ''); // Firefox等の互換性のため
+                    this.style.opacity = '0.5';
+                });
+
+                cell.addEventListener('dragend', function(e) {
+                    this.style.opacity = '1';
+                    cells.forEach(c => c.style.border = ''); 
+                });
+
+                cell.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    return false;
+                });
+
+                cell.addEventListener('dragenter', function(e) {
+                    e.preventDefault();
+                    if (draggedCell !== this) {
+                        // 同じクラス（行）なら青枠、違うクラスなら赤枠で視覚的にガイドする
+                        if (this.dataset.class === draggedCell.dataset.class) {
+                            this.style.border = '2px dashed #4A90E2';
+                        } else {
+                            this.style.border = '2px dashed #ff5252';
+                        }
+                    }
+                });
+
+                cell.addEventListener('dragleave', function(e) {
+                    if (draggedCell !== this) {
+                        this.style.border = '';
+                    }
+                });
+
+                cell.addEventListener('drop', function(e) {
+                    e.stopPropagation();
+                    this.style.border = '';
+
+                    // 同じクラスの行内でのみ入れ替えを許可
+                    if (draggedCell !== this && this.dataset.class === draggedCell.dataset.class) {
+                        let className = this.dataset.class;
+                        let slot1 = parseInt(draggedCell.dataset.slot);
+                        let slot2 = parseInt(this.dataset.slot);
+
+                        // currentScheduleの内部データを入れ替える
+                        let temp = currentSchedule[className][slot1];
+                        currentSchedule[className][slot1] = currentSchedule[className][slot2];
+                        currentSchedule[className][slot2] = temp;
+
+                        // 特別支援などの固定配置データも連動して入れ替える
+                        if (!fixedSlots[className]) fixedSlots[className] = {};
+                        let fixed1 = fixedSlots[className][slot1];
+                        let fixed2 = fixedSlots[className][slot2];
+
+                        if (fixed2 !== undefined) {
+                            fixedSlots[className][slot1] = fixed2;
+                        } else {
+                            delete fixedSlots[className][slot1];
+                        }
+
+                        if (fixed1 !== undefined) {
+                            fixedSlots[className][slot2] = fixed1;
+                        } else {
+                            delete fixedSlots[className][slot2];
+                        }
+
+                        // テーブルを再描画して変更を反映
+                        renderTable(currentSchedule);
+                    }
+                    return false;
+                });
+            });
+        }
+
+        // --- イベントリスナー ---
+
+        document.getElementById('resetHoursBtn').addEventListener('click', () => {
+            Object.keys(defaultSubjectsTemplate).forEach(grade => {
+                defaultSubjectsTemplate[grade] = JSON.parse(JSON.stringify(INITIAL_SUBJECTS_TEMPLATE_BASE[grade]));
+            });
+            
+            classesData.forEach(c => {
+                c.subjects = JSON.parse(JSON.stringify(defaultSubjectsTemplate[c.grade]));
+            });
+            
+            renderSubjectsTable();
+            
+            successSound.currentTime = 0;
+            successSound.play().catch(e => {});
+        });
+
+        document.getElementById('addPrefIncludeBtn').addEventListener('click', () => {
+            let grade = parseInt(document.getElementById('prefIncludeGrade').value);
+            let subject = document.getElementById('prefIncludeSubject').value;
+            let day = parseInt(document.getElementById('prefIncludeDay').value);
+            if (!prefIncludeConfig.some(c => c.grade === grade && c.subject === subject && c.day === day)) {
+                prefIncludeConfig.push({ id: Date.now(), grade, subject, day });
+                renderPrefIncludeList();
+            }
+        });
+
+        document.getElementById('addPrefExcludeBtn').addEventListener('click', () => {
+            let grade = parseInt(document.getElementById('prefExcludeGrade').value);
+            let subject = document.getElementById('prefExcludeSubject').value;
+            let day = parseInt(document.getElementById('prefExcludeDay').value);
+            if (!prefExcludeConfig.some(c => c.grade === grade && c.subject === subject && c.day === day)) {
+                prefExcludeConfig.push({ id: Date.now(), grade, subject, day });
+                renderPrefExcludeList();
+            }
+        });
+
+        document.getElementById('addPrefNoAfternoonBtn').addEventListener('click', () => {
+            let grade = parseInt(document.getElementById('prefNoAfternoonGrade').value);
+            let subject = document.getElementById('prefNoAfternoonSubject').value;
+            if (!prefNoAfternoonConfig.some(c => c.grade === grade && c.subject === subject)) {
+                prefNoAfternoonConfig.push({ id: Date.now(), grade, subject });
+                renderPrefNoAfternoonList();
+            }
+        });
+
+        document.getElementById('addSpecTeacherBtn').addEventListener('click', () => {
+            let name = document.getElementById('specTeacherName').value;
+            let subject = document.getElementById('specTeacherSubject').value;
+            if (!specialistTeachersConfig.some(c => c.name === name && c.subject === subject)) {
+                specialistTeachersConfig.push({ id: Date.now(), name, subject });
+                renderSpecTeacherList();
+            }
+        });
+
+        document.getElementById('addConflictBtn').addEventListener('click', () => {
+            let checkedBoxes = Array.from(document.querySelectorAll('.conflict-cb:checked')).map(cb => cb.value);
+            if (checkedBoxes.length === 0) return;
+            
+            conflictGroupsConfig.push({ id: Date.now(), subjects: checkedBoxes });
+            renderConflictGroupList();
+            
+            document.querySelectorAll('.conflict-cb').forEach(cb => cb.checked = false);
+        });
+
+        const addSameDayBtn = document.getElementById('addSameDayBtn');
+        if (addSameDayBtn) {
+            addSameDayBtn.addEventListener('click', () => {
+                let grade = parseInt(document.getElementById('sameDayGrade').value);
+                let sub = document.getElementById('sameDaySubject').value;
+                if (!sameDayConfig.some(s => s.grade === grade && s.subject === sub)) {
+                    sameDayConfig.push({ id: Date.now(), grade: grade, subject: sub });
+                    renderSameDayList();
+                }
+            });
+        }
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(tab.dataset.target).classList.add('active');
+            });
+        });
+
+        inputClass.addEventListener('input', function(e) {
+            let val = e.target.value;
+            val = val.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) { return String.fromCharCode(s.charCodeAt(0) - 0xFEE0); });
+            val = val.replace(/[^a-zA-Z0-9]/g, '');
+            e.target.value = val;
+        });
+
+        addClassBtn.addEventListener('click', () => {
+            const grade = inputGrade.value;
+            const className = inputClass.value.trim();
+            if (!className) return;
+            
+            addClassData(grade, className);
+            
+            let nextClass = parseInt(className);
+            if (!isNaN(nextClass)) { inputClass.value = nextClass + 1; } 
+            else { inputClass.value = ''; }
+            inputClass.focus();
+        });
+
+        addJointBtn.addEventListener('click', () => {
+            let grade = parseInt(jointGrade.value);
+            let subject = jointSubject.value;
+            let count = parseInt(jointCount.value);
+
+            jointClassesConfig = jointClassesConfig.filter(jc => !(jc.grade === grade && jc.subject === subject));
+            jointClassesConfig.push({ id: Date.now(), grade: grade, subject: subject, count: count });
+            renderJointList();
+        });
+
+        addPairBtn.addEventListener('click', () => {
+            let grade = parseInt(pairGrade.value);
+            let sub1 = pairSub1.value;
+            let sub2 = pairSub2.value;
+            if (sub1 === sub2) return; 
+
+            let exists = priorityPairsConfig.some(pc => pc.grade === grade && ((pc.sub1 === sub1 && pc.sub2 === sub2) || (pc.sub1 === sub2 && pc.sub2 === sub1)));
+            if (!exists) {
+                priorityPairsConfig.push({ id: Date.now(), grade: grade, sub1: sub1, sub2: sub2 });
+                renderPairList();
+            }
+        });
+
+        goToSettingsBtn.addEventListener('click', () => switchView('view-settings'));
+        backToGeneratorBtn.addEventListener('click', () => switchView('view-generator'));
+
+        goToGeneratorBtn.addEventListener('click', () => {
+            if (classesData.length === 0) return;
+            switchView('view-generator');
+            tableWrapper.classList.remove('show');
+            copyBtn.style.display = 'none'; 
+            downloadCsvBtn.style.display = 'none';
+            btnText.innerHTML = '時間割を自動生成する ✨';
+        });
+
+        generateBtn.addEventListener('click', () => {
+            if (classesData.length === 0) return;
+            
+            tableWrapper.classList.remove('show');
+            copyBtn.style.display = 'none'; 
+            downloadCsvBtn.style.display = 'none';
+            loading.style.display = 'block';
+            setTimeout(() => loading.style.opacity = '1', 10);
+            generateBtn.disabled = true;
+            generateBtn.style.opacity = '0.7';
+
+            setTimeout(() => {
+                const newSchedule = generateSchedule();
+
+                if (!newSchedule) {
+                    loading.style.display = 'none';
+                    loading.style.opacity = '0';
+                    generateBtn.disabled = false;
+                    generateBtn.style.opacity = '1';
+                    return;
+                }
+
+                currentSchedule = newSchedule; 
+                renderTable(newSchedule);
+
+                loading.style.opacity = '0';
+                setTimeout(() => {
+                    loading.style.display = 'none';
+                    tableWrapper.classList.add('show');
+                    copyBtn.style.display = 'flex'; 
+                    downloadCsvBtn.style.display = 'flex';
+                    
+                    successSound.currentTime = 0;
+                    successSound.play().catch(e => {});
+                    confetti({
+                        particleCount: 150,
+                        spread: 80,
+                        origin: { y: 0.6 },
+                        colors: ['#4A90E2', '#fce4ec', '#fff8e1', '#e8f5e9']
+                    });
+
+                    btnText.innerHTML = 'もう一度作成し直す 🔄';
+                    generateBtn.disabled = false;
+                    generateBtn.style.opacity = '1';
+                }, 300);
+            }, 100); 
+        });
+
+        // データ出力用の共通関数
+        function getExportData() {
+            let rows = [];
+
+            let header1 = ['学年/組', '担任名'];
+            daysConfig.forEach(day => {
+                for (let i = 0; i < day.periods; i++) {
+                    if (i === 0) header1.push(day.name);
+                    else header1.push(''); 
+                }
+            });
+            rows.push(header1);
+
+            let header2 = ['', ''];
+            daysConfig.forEach(day => {
+                for (let i = 1; i <= day.periods; i++) {
+                    header2.push(i);
+                }
+            });
+            rows.push(header2);
+
+            classesData.forEach(c => {
+                let row = [c.name, ''];
+                let slotIdx = 0;
+                daysConfig.forEach(day => {
+                    for (let p = 1; p <= day.periods; p++) {
+                        let sub = currentSchedule[c.name][slotIdx];
+                        let safeSub = (sub === '／' || sub === null) ? '' : sub;
+                        row.push(safeSub);
+                        slotIdx++;
+                    }
+                });
+                rows.push(row);
+            });
+
+            const count = parseInt(document.getElementById('spNeedTeacherCount').value) || 2;
+            const alphabets = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+            let spTeachers = [];
+            for(let i=0; i<count; i++) {
+                spTeachers.push(`特${alphabets[i]}`);
+            }
+
+            spTeachers.forEach(teacher => {
+                let row = [`特別支援${teacher.replace('特', '')}`, ''];
+                let slotIdx = 0;
+                daysConfig.forEach((day, dIdx) => {
+                    for (let p = 1; p <= day.periods; p++) {
+                        let assignedClasses = [];
+                        classesData.forEach(c => {
+                            if (fixedSlots[c.name] && fixedSlots[c.name][slotIdx] && fixedSlots[c.name][slotIdx].teacher === teacher) {
+                                assignedClasses.push(`${fixedSlots[c.name][slotIdx].subject}\n${c.grade}-${c.className}`);
+                            }
+                        });
+                        if (assignedClasses.length > 0) {
+                            row.push(assignedClasses.join('\n---\n'));
+                        } else {
+                            row.push('');
+                        }
+                        slotIdx++;
+                    }
+                });
+                rows.push(row);
+            });
+
+            // 専科担当者の配置状況を反映
+            specialistTeachersConfig.forEach(conf => {
+                let row = [`${conf.name} - ${conf.subject}担当`, ''];
+                let slotIdx = 0;
+                daysConfig.forEach(day => {
+                    for (let p = 1; p <= day.periods; p++) {
+                        let assignedClasses = [];
+                        classesData.forEach(c => {
+                            let sub = currentSchedule[c.name][slotIdx];
+                            if (sub && sub !== '／' && sub.includes(conf.subject)) {
+                                assignedClasses.push(`${conf.subject}\n${c.grade}-${c.className}`);
+                            }
+                        });
+                        if (assignedClasses.length > 0) {
+                            row.push(assignedClasses.join('\n---\n'));
+                        } else {
+                            row.push('');
+                        }
+                        slotIdx++;
+                    }
+                });
+                rows.push(row);
+            });
+
+            return rows;
+        }
+
+        // TSV形式でクリップボードにコピー
+        copyBtn.addEventListener('click', () => {
+            if (!currentSchedule || classesData.length === 0) return;
+
+            let rows = getExportData();
+            let tsvContent = rows.map(row => {
+                return row.map(cell => {
+                    let cellStr = String(cell);
+                    if (cellStr.includes('\n') || cellStr.includes('"') || cellStr.includes('\t')) {
+                        return `"${cellStr.replace(/"/g, '""')}"`;
+                    }
+                    return cellStr;
+                }).join('\t');
+            }).join('\n');
+
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = tsvContent;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            
+            try {
+                document.execCommand('copy');
+                const btnSpan = copyBtn.querySelector('span');
+                const originalText = btnSpan.innerText;
+                btnSpan.innerText = '✅ コピー完了！スプレッドシートのA1セルに貼り付けてください';
+                setTimeout(() => {
+                    btnSpan.innerText = originalText;
+                }, 4000);
+            } catch (err) {
+                alert('コピーに失敗しました。');
+            }
+            
+            document.body.removeChild(tempTextArea);
+        });
+
+        // CSVファイルとしてダウンロード
+        downloadCsvBtn.addEventListener('click', () => {
+            if (!currentSchedule || classesData.length === 0) return;
+
+            let rows = getExportData();
+            let csvContent = rows.map(row => {
+                return row.map(cell => {
+                    let cellStr = String(cell);
+                    if (cellStr.includes('\n') || cellStr.includes('"') || cellStr.includes(',')) {
+                        return `"${cellStr.replace(/"/g, '""')}"`;
+                    }
+                    return cellStr;
+                }).join(',');
+            }).join('\n');
+
+            // Excelで文字化けしないようにBOMを追加
+            const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+            const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', '時間割.csv');
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // --- 設定の保存・読込機能（複数スロット・名前付き） ---
+        const SAVE_STORAGE_KEY = 'timetable_saved_list';
+
+        function showSaveStatus(msg, color) {
+            const el = document.getElementById('saveStatusMsg');
+            el.textContent = msg;
+            el.style.color = color || '#0f9d58';
+            el.style.opacity = '1';
+            setTimeout(() => { el.style.opacity = '0'; }, 3000);
+        }
+
+        function getSavedList() {
+            try {
+                const raw = localStorage.getItem(SAVE_STORAGE_KEY);
+                if (!raw) return [];
+                return JSON.parse(raw);
+            } catch (e) { return []; }
+        }
+
+        function putSavedList(list) {
+            localStorage.setItem(SAVE_STORAGE_KEY, JSON.stringify(list));
+        }
+
+        function buildSettingsData() {
+            const consecutiveChecked = Array.from(document.querySelectorAll('.consecutive-checkbox')).map(cb => ({
+                value: cb.value,
+                checked: cb.checked
+            }));
+            return {
+                classesData: classesData,
+                defaultSubjectsTemplate: defaultSubjectsTemplate,
+                jointClassesConfig: jointClassesConfig,
+                priorityPairsConfig: priorityPairsConfig,
+                conflictGroupsConfig: conflictGroupsConfig,
+                sameDayConfig: sameDayConfig,
+                prefIncludeConfig: prefIncludeConfig,
+                prefExcludeConfig: prefExcludeConfig,
+                prefNoAfternoonConfig: prefNoAfternoonConfig,
+                specialistTeachersConfig: specialistTeachersConfig,
+                unavailableSlotsByGrade: unavailableSlotsByGrade,
+                fixedSlots: fixedSlots,
+                consecutiveChecked: consecutiveChecked,
+                spNeedTeacherCount: document.getElementById('spNeedTeacherCount').value
+            };
+        }
+
+        function applySettingsData(data) {
+            classesData = data.classesData || [];
+            classesData.forEach(c => { c.id = Date.now() + Math.random(); });
+
+            if (data.defaultSubjectsTemplate) {
+                for (let grade in data.defaultSubjectsTemplate) {
+                    defaultSubjectsTemplate[grade] = data.defaultSubjectsTemplate[grade];
+                }
+            }
+
+            jointClassesConfig = data.jointClassesConfig || [];
+            priorityPairsConfig = data.priorityPairsConfig || [];
+            conflictGroupsConfig = data.conflictGroupsConfig || [];
+            sameDayConfig = data.sameDayConfig || [];
+            prefIncludeConfig = data.prefIncludeConfig || [];
+            prefExcludeConfig = data.prefExcludeConfig || [];
+            prefNoAfternoonConfig = data.prefNoAfternoonConfig || [];
+            specialistTeachersConfig = data.specialistTeachersConfig || [];
+
+            if (data.unavailableSlotsByGrade) {
+                for (let grade in data.unavailableSlotsByGrade) {
+                    unavailableSlotsByGrade[grade] = data.unavailableSlotsByGrade[grade];
+                }
+            }
+
+            fixedSlots = data.fixedSlots || {};
+
+            if (data.consecutiveChecked) {
+                document.querySelectorAll('.consecutive-checkbox').forEach(cb => {
+                    const saved = data.consecutiveChecked.find(s => s.value === cb.value);
+                    if (saved) cb.checked = saved.checked;
+                });
+            }
+
+            if (data.spNeedTeacherCount) {
+                document.getElementById('spNeedTeacherCount').value = data.spNeedTeacherCount;
+            }
+            updateTeacherSelect();
+
+            renderClassList();
+            renderSlotGrid();
+            renderFixedTable();
+            renderJointList();
+            renderPairList();
+            renderSubjectsTable();
+            renderConflictGroupList();
+            renderSameDayList();
+            renderPrefIncludeList();
+            renderPrefExcludeList();
+            renderPrefNoAfternoonList();
+            renderSpecTeacherList();
+            updateNextClassInput();
+        }
+
+        function saveSettings() {
+            try {
+                const nameInput = document.getElementById('saveNameInput');
+                let name = nameInput.value.trim();
+                if (!name) {
+                    name = new Date().toLocaleString('ja-JP') + ' の設定';
+                }
+
+                const list = getSavedList();
+                const entry = {
+                    id: Date.now(),
+                    name: name,
+                    savedAt: new Date().toLocaleString('ja-JP'),
+                    data: buildSettingsData()
+                };
+                list.unshift(entry);
+                putSavedList(list);
+
+                nameInput.value = '';
+                renderSavedList();
+                showSaveStatus('✅「' + name + '」を保存しました', '#0f9d58');
+            } catch (e) {
+                showSaveStatus('❌ 保存に失敗しました', '#ff5252');
+                console.error('設定の保存に失敗:', e);
+            }
+        }
+
+        function loadSettingsById(id) {
+            try {
+                const list = getSavedList();
+                const entry = list.find(e => e.id === id);
+                if (!entry) {
+                    showSaveStatus('⚠️ データが見つかりません', '#ff9800');
+                    return;
+                }
+                applySettingsData(entry.data);
+                showSaveStatus('✅「' + entry.name + '」を読み込みました', '#0f9d58');
+            } catch (e) {
+                showSaveStatus('❌ 読み込みに失敗しました', '#ff5252');
+                console.error('設定の読み込みに失敗:', e);
+            }
+        }
+
+        function deleteSettingsById(id) {
+            const list = getSavedList();
+            const entry = list.find(e => e.id === id);
+            if (!entry) return;
+            if (!confirm('「' + entry.name + '」を削除しますか？')) return;
+            const newList = list.filter(e => e.id !== id);
+            putSavedList(newList);
+            renderSavedList();
+            showSaveStatus('🗑️「' + entry.name + '」を削除しました', '#ff5252');
+        }
+
+        function renameSettings(id) {
+            const list = getSavedList();
+            const entry = list.find(e => e.id === id);
+            if (!entry) return;
+            const newName = prompt('新しい名前を入力してください:', entry.name);
+            if (newName === null || newName.trim() === '') return;
+            entry.name = newName.trim();
+            putSavedList(list);
+            renderSavedList();
+            showSaveStatus('✏️ 名前を変更しました', '#4A90E2');
+        }
+
+        function renderSavedList() {
+            const container = document.getElementById('savedSettingsList');
+            const list = getSavedList();
+
+            if (list.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999; font-size: 0.85rem; margin: 10px 0;">保存された設定はありません</p>';
+                return;
+            }
+
+            let html = '';
+            list.forEach(entry => {
+                const classInfo = (entry.data && entry.data.classesData) ? entry.data.classesData.map(c => c.name).join(', ') : '';
+                html += `<div style="display: flex; align-items: center; gap: 6px; padding: 10px 12px; background: rgba(255,255,255,0.7); border-radius: 10px; margin-bottom: 6px; border: 1px solid rgba(0,0,0,0.05); flex-wrap: wrap;">
+                    <div style="flex-grow: 1; min-width: 120px;">
+                        <div style="font-weight: bold; font-size: 0.95rem; color: #333;">${entry.name}</div>
+                        <div style="font-size: 0.75rem; color: #888;">${entry.savedAt || ''}</div>
+                        <div style="font-size: 0.7rem; color: #aaa; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px;">${classInfo}</div>
+                    </div>
+                    <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                        <button onclick="loadSettingsById(${entry.id})" style="background: #ff9800; font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; height: auto; box-shadow: none;">読込</button>
+                        <button onclick="renameSettings(${entry.id})" style="background: #4A90E2; font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; height: auto; box-shadow: none;">名前変更</button>
+                        <button onclick="deleteSettingsById(${entry.id})" style="background: #ff5252; font-size: 0.75rem; padding: 5px 10px; border-radius: 6px; height: auto; box-shadow: none;">削除</button>
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // 旧形式（単一保存）の移行
+        (function migrateOldSave() {
+            const old = localStorage.getItem('timetable_settings');
+            if (!old) return;
+            try {
+                const data = JSON.parse(old);
+                if (data && data.version && !data.id) {
+                    const list = getSavedList();
+                    list.push({
+                        id: Date.now(),
+                        name: '移行データ（' + (data.savedAt || '旧保存') + '）',
+                        savedAt: data.savedAt || '',
+                        data: data
+                    });
+                    putSavedList(list);
+                    localStorage.removeItem('timetable_settings');
+                }
+            } catch(e) {}
+        })();
+
+        document.getElementById('toggleSavePanel').addEventListener('click', () => {
+            const panel = document.getElementById('savePanel');
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                renderSavedList();
+            } else {
+                panel.style.display = 'none';
+            }
+        });
+
+        document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+
+        initApp();
+    </script>
+</body>
+</html>
